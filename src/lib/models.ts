@@ -19,6 +19,7 @@ export interface InvoiceRecord extends Omit<Invoice, "status" | "lines"> {
   status: InvoiceStatus;
   lines: ExtractedLine[];
   source: "seed" | "upload" | "camera" | "sample";
+  extraction?: "imported" | "simulated" | "claude";
   fileName?: string;
   uploadedAt?: string;
   approvedAt?: string;

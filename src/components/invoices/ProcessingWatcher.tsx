@@ -10,7 +10,7 @@ export const PROCESSING_MS = 2800;
 export function ProcessingWatcher() {
   const { state, hydrated } = useApp();
   const actions = useActions();
-  const processing = useMemo(() => state.invoices.filter((i) => i.status === "processing"), [state.invoices]);
+  const processing = useMemo(() => state.invoices.filter((i) => i.status === "processing" && i.extraction !== "claude"), [state.invoices]);
 
   useEffect(() => {
     if (!hydrated || processing.length === 0) return;

@@ -189,6 +189,7 @@ export function simulateExtraction(
     total,
     lines,
     source,
+    extraction: "simulated",
     fileName,
     uploadedAt: new Date().toISOString(),
     confidence,

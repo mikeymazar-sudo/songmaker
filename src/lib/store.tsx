@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { VendorId } from "@/data/types";
 import type {
   AppState,
@@ -12,12 +12,12 @@ import type {
   PurchaseOrder,
   RoutingSettings,
 } from "./models";
-import { buildInitialState, STATE_VERSION } from "@/data/initialState";
+import { buildInitialState } from "@/data/initialState";
 import { routeOrder } from "./pricing";
 import { fmtNum, money, nowISO, round2, signedPct, uid, unitLabel } from "./format";
+import { diffState } from "./sync";
 
-const STORAGE_KEY = "smartpurchasing.state.v1";
-const ACTOR = "Owner (demo)";
+const ACTOR = "Owner";
 const AUDIT_LIMIT = 800;
 
 export type Action =
@@ -419,62 +419,204 @@ export interface UiState {
   nonce: number;
 }
 
+export type AuthStatus = "checking" | "required" | "unconfigured" | "ok";
+export type SyncStatus = "idle" | "saving" | "saved" | "error";
+
 interface StoreValue {
   state: AppState;
   dispatch: React.Dispatch<Action>;
   hydrated: boolean;
+  auth: AuthStatus;
+  authMessage: string | null;
+  syncStatus: SyncStatus;
+  syncError: string | null;
+  extractionEnabled: boolean;
+  login: (passcode: string) => Promise<string | null>;
+  logout: () => Promise<void>;
+  reset: () => Promise<void>;
+  reload: () => Promise<void>;
   ui: UiState;
   setUi: (patch: Partial<UiState>) => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
-const subscribeNoop = () => () => {};
 
-function loadPersisted(): AppState | null {
+async function readError(res: Response): Promise<string> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as AppState;
-    if (parsed && parsed.version === STATE_VERSION && Array.isArray(parsed.products)) return parsed;
+    const body = (await res.json()) as { error?: string };
+    return body.error ?? `Request failed (${res.status})`;
   } catch {
-    // ignore corrupt storage
+    return `Request failed (${res.status})`;
   }
-  return null;
+}
+
+interface SyncRun {
+  state: AppState;
+  lastSynced: React.MutableRefObject<AppState | null>;
+  inFlight: React.MutableRefObject<boolean>;
+  dirty: React.MutableRefObject<boolean>;
+  onStatus: (status: SyncStatus, error: string | null) => void;
+  onSignedOut: () => void;
+  onRetry: () => void;
+}
+
+async function runSync(run: SyncRun): Promise<void> {
+  if (run.inFlight.current) {
+    run.dirty.current = true;
+    return;
+  }
+  const base = run.lastSynced.current;
+  if (!base) return;
+  const target = run.state;
+  const req = diffState(base, target);
+  if (!req) {
+    run.lastSynced.current = target;
+    return;
+  }
+  run.inFlight.current = true;
+  run.onStatus("saving", null);
+  try {
+    const res = await fetch("/api/sync", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(req),
+    });
+    if (res.status === 401) {
+      run.onSignedOut();
+      throw new Error("Signed out");
+    }
+    if (!res.ok) throw new Error(await readError(res));
+    run.lastSynced.current = target;
+    run.onStatus("saved", null);
+  } catch (err) {
+    run.onStatus("error", err instanceof Error ? err.message : "Save failed");
+    window.setTimeout(run.onRetry, 4000);
+  } finally {
+    run.inFlight.current = false;
+    if (run.dirty.current) {
+      run.dirty.current = false;
+      run.onRetry();
+    }
+  }
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, undefined, () => buildInitialState());
-  const initialRef = useRef(state);
-  const hydrated = useSyncExternalStore(subscribeNoop, () => true, () => false);
+  const [hydrated, setHydrated] = useState(false);
+  const [auth, setAuth] = useState<AuthStatus>("checking");
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [extractionEnabled, setExtractionEnabled] = useState(false);
+  const [tick, setTick] = useState(0);
   const [ui, setUiState] = useState<UiState>({ productQuery: "", selectedInvoiceId: null, selectedProductId: null, nonce: 0 });
-  const saveTimer = useRef<number | null>(null);
 
-  useLayoutEffect(() => {
-    const persisted = loadPersisted();
-    if (persisted) dispatch({ type: "HYDRATE", state: persisted });
+  const lastSynced = useRef<AppState | null>(null);
+  const inFlight = useRef(false);
+  const dirty = useRef(false);
+
+  const reload = useCallback(async () => {
+    try {
+      const res = await fetch("/api/state", { cache: "no-store" });
+      if (res.status === 401) {
+        setAuth("required");
+        setAuthMessage(null);
+        return;
+      }
+      if (!res.ok) {
+        setAuth("unconfigured");
+        setAuthMessage(await readError(res));
+        return;
+      }
+      const body = (await res.json()) as { state: AppState; extraction: boolean };
+      lastSynced.current = body.state;
+      dispatch({ type: "HYDRATE", state: body.state });
+      setExtractionEnabled(Boolean(body.extraction));
+      setAuth("ok");
+      setAuthMessage(null);
+      setHydrated(true);
+      setSyncStatus("saved");
+    } catch (err) {
+      setAuth("unconfigured");
+      setAuthMessage(err instanceof Error ? err.message : "Could not reach the server");
+    }
   }, []);
 
   useEffect(() => {
-    if (!hydrated || state === initialRef.current) return;
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch {
-        // storage may be unavailable
-      }
-    }, 250);
-  }, [state, hydrated]);
+    const t = window.setTimeout(() => void reload(), 0);
+    return () => window.clearTimeout(t);
+  }, [reload]);
+
+  // Incremental sync: debounce, diff against the last state the server confirmed, retry on failure.
+  useEffect(() => {
+    if (!hydrated || auth !== "ok") return;
+    if (!lastSynced.current || state === lastSynced.current) return;
+    const timer = window.setTimeout(() => {
+      void runSync({
+        state,
+        lastSynced,
+        inFlight,
+        dirty,
+        onStatus: (status, error) => {
+          setSyncStatus(status);
+          setSyncError(error);
+        },
+        onSignedOut: () => setAuth("required"),
+        onRetry: () => setTick((t) => t + 1),
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [state, hydrated, auth, tick]);
+
+  const login = useCallback(
+    async (passcode: string): Promise<string | null> => {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ passcode }),
+      });
+      if (!res.ok) return readError(res);
+      setAuth("checking");
+      await reload();
+      return null;
+    },
+    [reload],
+  );
+
+  const logout = useCallback(async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setAuth("required");
+    setHydrated(false);
+    lastSynced.current = null;
+  }, []);
+
+  const reset = useCallback(async () => {
+    const res = await fetch("/api/reset", { method: "POST" });
+    if (!res.ok) throw new Error(await readError(res));
+    const body = (await res.json()) as { state: AppState };
+    lastSynced.current = body.state;
+    dispatch({ type: "HYDRATE", state: body.state });
+    setSyncStatus("saved");
+  }, []);
 
   const value = useMemo<StoreValue>(
     () => ({
       state,
       dispatch,
       hydrated,
+      auth,
+      authMessage,
+      syncStatus,
+      syncError,
+      extractionEnabled,
+      login,
+      logout,
+      reset,
+      reload,
       ui,
       setUi: (patch) => setUiState((prev) => ({ ...prev, ...patch })),
     }),
-    [state, hydrated, ui],
+    [state, hydrated, auth, authMessage, syncStatus, syncError, extractionEnabled, login, logout, reset, reload, ui],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
@@ -490,14 +632,6 @@ export function useActions() {
   const { dispatch } = useApp();
   return useMemo(
     () => ({
-      reset: () => {
-        try {
-          localStorage.removeItem(STORAGE_KEY);
-        } catch {
-          // ignore
-        }
-        dispatch({ type: "RESET", ts: nowISO() });
-      },
       setOnHand: (productId: string, value: number) => dispatch({ type: "SET_ON_HAND", productId, value, ts: nowISO() }),
       setPar: (productId: string, value: number) => dispatch({ type: "SET_PAR", productId, value, ts: nowISO() }),
       setOrderQty: (productId: string, value: number | null) =>

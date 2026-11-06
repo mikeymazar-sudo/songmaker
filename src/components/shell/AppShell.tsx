@@ -1,12 +1,13 @@
 "use client";
 
-import { ClipboardList, FileText, History, LayoutDashboard, Package, RotateCcw, Sparkles, Truck } from "lucide-react";
+import { ClipboardList, FileText, History, LayoutDashboard, LogOut, Package, RotateCcw, Sparkles, Truck } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/format";
-import { useActions, useApp } from "@/lib/store";
-import { Badge } from "@/components/ui/Badge";
+import { useApp } from "@/lib/store";
+import { LoginScreen } from "@/components/auth/LoginScreen";
+import { SyncIndicator } from "./SyncIndicator";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
 import { ProcessingWatcher } from "@/components/invoices/ProcessingWatcher";
 import { GlobalSearch } from "./GlobalSearch";
@@ -26,23 +27,52 @@ function isActive(pathname: string, href: string) {
 }
 
 function ResetButton() {
-  const actions = useActions();
+  const { reset, auth } = useApp();
   const { toast } = useToast();
+  if (auth !== "ok") return null;
   return (
     <button
       type="button"
-      title="Reset demo data"
-      aria-label="Reset demo data"
-      onClick={() => {
-        if (window.confirm("Reset all demo data? Counts, uploads and orders made in this browser will be cleared.")) {
-          actions.reset();
-          toast({ title: "Demo data reset", description: "Back to the original seed data.", tone: "info" });
+      title="Reset to seed data"
+      aria-label="Reset to seed data"
+      onClick={async () => {
+        if (!window.confirm("Reset the database to the original seed data? Counts, uploads and purchase orders will be deleted for everyone.")) return;
+        try {
+          await reset();
+          toast({ title: "Data reset", description: "Back to the original seed data.", tone: "info" });
+        } catch (err) {
+          toast({ title: "Reset failed", description: err instanceof Error ? err.message : "Try again.", tone: "danger" });
         }
       }}
       className="flex h-11 w-11 items-center justify-center rounded-xl text-text-2 hover:bg-surface-3"
     >
       <RotateCcw className="h-5 w-5" />
     </button>
+  );
+}
+
+function LogoutButton() {
+  const { logout, auth } = useApp();
+  if (auth !== "ok") return null;
+  return (
+    <button
+      type="button"
+      title="Sign out"
+      aria-label="Sign out"
+      onClick={() => void logout()}
+      className="flex h-11 w-11 items-center justify-center rounded-xl text-text-2 hover:bg-surface-3"
+    >
+      <LogOut className="h-5 w-5" />
+    </button>
+  );
+}
+
+function ConfigCard({ message }: { message: string | null }) {
+  return (
+    <div className="mx-auto mt-10 max-w-lg rounded-(--radius-card) border border-warning/40 bg-warning-soft px-5 py-4 text-sm text-warning">
+      <div className="font-semibold">The server is not fully configured</div>
+      <div className="mt-1">{message ?? "Check the environment variables on the server."}</div>
+    </div>
   );
 }
 
@@ -62,8 +92,8 @@ function Skeleton() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { state, hydrated } = useApp();
-  const pendingReview = hydrated ? state.invoices.filter((i) => i.status === "needs-review").length : 0;
+  const { state, hydrated, auth, authMessage } = useApp();
+  const pendingReview = hydrated && auth === "ok" ? state.invoices.filter((i) => i.status === "needs-review").length : 0;
   const current = NAV.find((n) => isActive(pathname, n.href));
 
   return (
@@ -105,8 +135,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             })}
           </nav>
           <div className="border-t border-border px-5 py-4 text-xs text-muted">
-            <div className="font-medium text-text-2">Demo workspace</div>
-            <div className="mt-0.5">All data lives in this browser. Use the reset button to start over.</div>
+            <div className="font-medium text-text-2">Your workspace</div>
+            <div className="mt-0.5">Every change is saved to your database. The reset button restores the seed data.</div>
           </div>
         </aside>
 
@@ -121,15 +151,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="mx-auto w-full max-w-xl flex-1">
               <GlobalSearch />
             </div>
-            <span className="hidden sm:inline-flex">
-              <Badge tone="info">Demo data</Badge>
-            </span>
+            <SyncIndicator className="mr-1" />
             <ResetButton />
+            <LogoutButton />
             <ThemeToggle />
           </header>
 
           <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 pb-24 pt-5 md:px-6 lg:px-8 lg:pb-8">
-            {hydrated ? children : <Skeleton />}
+            {auth === "required" ? <LoginScreen /> : auth === "unconfigured" ? <ConfigCard message={authMessage} /> : hydrated && auth === "ok" ? children : <Skeleton />}
           </main>
 
           <nav

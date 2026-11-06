@@ -26,7 +26,9 @@ function ProcessingCard({ invoice }: { invoice: InvoiceRecord }) {
     const t = window.setInterval(() => setElapsed(Date.now() - started), 150);
     return () => window.clearInterval(t);
   }, [invoice.uploadedAt]);
-  const stepIndex = Math.min(STEPS.length - 1, Math.floor((elapsed / PROCESSING_MS) * STEPS.length));
+  const real = invoice.extraction === "claude";
+  const budget = real ? 20000 : PROCESSING_MS;
+  const stepIndex = Math.min(STEPS.length - 1, Math.floor((elapsed / budget) * STEPS.length));
   return (
     <Card>
       <CardBody className="flex flex-col items-center gap-4 py-10 text-center">
@@ -35,7 +37,7 @@ function ProcessingCard({ invoice }: { invoice: InvoiceRecord }) {
         </span>
         <div>
           <div className="text-lg font-semibold text-text">Reading invoice {invoice.fileName ? `“${invoice.fileName}”` : ""}</div>
-          <div className="text-sm text-muted">This usually takes a few seconds per page.</div>
+          <div className="text-sm text-muted">{real ? "Claude is reading the document. Multi-page invoices can take up to a minute." : "This usually takes a few seconds per page."}</div>
         </div>
         <ol className="w-full max-w-sm space-y-2 text-left text-sm">
           {STEPS.map((s, i) => (

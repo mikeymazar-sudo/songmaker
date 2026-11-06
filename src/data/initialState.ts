@@ -18,6 +18,7 @@ function seedInvoiceToRecord(inv: (typeof invoices)[number]): InvoiceRecord {
     status: "approved",
     lines,
     source: "seed",
+    extraction: "imported",
     approvedAt: `${inv.date}T18:00:00.000Z`,
     confidence: 0.99,
   };
