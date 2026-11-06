@@ -17,7 +17,12 @@ import { useActions, useApp } from "@/lib/store";
 import { InvoicePaper } from "./InvoicePaper";
 import { PROCESSING_MS } from "./ProcessingWatcher";
 
-const STEPS = ["Reading the document", "Extracting header and line items", "Normalizing units and pack sizes", "Matching products and checking prices"];
+const STEPS = [
+  "Reading the invoice",
+  "Finding the vendor, date and each item",
+  "Working out pack sizes",
+  "Matching your products and checking prices",
+];
 
 function ProcessingCard({ invoice }: { invoice: InvoiceRecord }) {
   const [elapsed, setElapsed] = useState(0);
@@ -36,13 +41,27 @@ function ProcessingCard({ invoice }: { invoice: InvoiceRecord }) {
           <Sparkles className="h-7 w-7 animate-pulse" />
         </span>
         <div>
-          <div className="text-lg font-semibold text-text">Reading invoice {invoice.fileName ? `“${invoice.fileName}”` : ""}</div>
-          <div className="text-sm text-muted">{real ? "Claude is reading the document. Multi-page invoices can take up to a minute." : "This usually takes a few seconds per page."}</div>
+          <div className="text-lg font-semibold text-text">Reading your invoice{invoice.fileName ? ` “${invoice.fileName}”` : ""}</div>
+          <div className="text-sm text-muted">
+            {real ? "This can take up to a minute for invoices with several pages." : "This usually takes a few seconds."}
+          </div>
         </div>
         <ol className="w-full max-w-sm space-y-2 text-left text-sm">
           {STEPS.map((s, i) => (
-            <li key={s} className={cn("flex items-center gap-2", i < stepIndex ? "text-success" : i === stepIndex ? "text-text" : "text-muted")}>
-              {i < stepIndex ? <Check className="h-4 w-4" /> : <span className={cn("h-4 w-4 rounded-full border-2", i === stepIndex ? "animate-spin border-brand border-t-transparent" : "border-border-strong")} />}
+            <li
+              key={s}
+              className={cn("flex items-center gap-2", i < stepIndex ? "text-success" : i === stepIndex ? "text-text" : "text-muted")}
+            >
+              {i < stepIndex ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <span
+                  className={cn(
+                    "h-4 w-4 rounded-full border-2",
+                    i === stepIndex ? "animate-spin border-brand border-t-transparent" : "border-border-strong",
+                  )}
+                />
+              )}
               {s}
             </li>
           ))}
@@ -89,7 +108,9 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
   if (invoice.status === "processing") return <ProcessingCard invoice={invoice} />;
 
   const editable = invoice.status === "needs-review";
-  const badPrices = invoice.lines.filter((l) => !l.isFee && (!(l.unitPrice > 0) || (l.productId && !((l.normalizedUnitPrice ?? l.unitPrice) > 0))));
+  const badPrices = invoice.lines.filter(
+    (l) => !l.isFee && (!(l.unitPrice > 0) || (l.productId && !((l.normalizedUnitPrice ?? l.unitPrice) > 0))),
+  );
   const canApprove = editable && summary.unmatched.length === 0 && badPrices.length === 0;
 
   const productOptions = CATEGORIES.map((c) => ({
@@ -103,7 +124,12 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
       return;
     }
     if (!productId) {
-      actions.updateInvoiceLine(invoice.id, line.lineId, { productId: undefined, matchStatus: "unmatched", normalizedUnitPrice: undefined, previousPrice: undefined });
+      actions.updateInvoiceLine(invoice.id, line.lineId, {
+        productId: undefined,
+        matchStatus: "unmatched",
+        normalizedUnitPrice: undefined,
+        previousPrice: undefined,
+      });
       return;
     }
     const product = state.products.find((p) => p.id === productId);
@@ -111,7 +137,9 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
     // Per case: the billed price is the base-unit price. Otherwise keep the model's normalization if it
     // exists; if not, start from the billed price and ask the reviewer to confirm the per-unit figure.
     const factor =
-      product?.baseUnit === "case" ? 1 : line.normalizationFactor ?? (line.unitPrice > 0 && line.normalizedUnitPrice ? line.normalizedUnitPrice / line.unitPrice : 1);
+      product?.baseUnit === "case"
+        ? 1
+        : (line.normalizationFactor ?? (line.unitPrice > 0 && line.normalizedUnitPrice ? line.normalizedUnitPrice / line.unitPrice : 1));
     const flags = line.flags.filter((f) => !f.startsWith("New item") && !f.startsWith("Confirm the price per"));
     if (product && product.baseUnit !== "case" && factor === 1) flags.push(`Confirm the price per ${product.baseUnit}`);
     actions.updateInvoiceLine(invoice.id, line.lineId, {
@@ -127,13 +155,15 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
 
   const approve = () => {
     if (invoice.extraction === "simulated" || invoice.source === "sample") {
-      const ok = window.confirm("This is a simulated sample, not a real delivery. Approving writes its prices into your real catalog. Continue?");
+      const ok = window.confirm(
+        "This is a simulated sample, not a real delivery. Approving writes its prices into your real catalog. Continue?",
+      );
       if (!ok) return;
     }
     actions.approveInvoice(invoice.id);
     toast({
       title: `Invoice ${invoice.invoiceNumber} approved`,
-      description: `${summary.merch.length} lines saved to purchasing history. ${summary.ups + summary.downs} price changes recorded.`,
+      description: `${summary.merch.length} items saved. ${summary.ups + summary.downs} prices updated.`,
     });
     onBack();
   };
@@ -146,7 +176,13 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
   };
 
   const defaults: ProductFormDefaults | undefined = creatingFor
-    ? { name: titleCase(creatingFor.description), category: creatingFor.category, packSize: creatingFor.packSize, baseUnit: "case", preferredVendorId: invoice.vendorId }
+    ? {
+        name: titleCase(creatingFor.description),
+        category: creatingFor.category,
+        packSize: creatingFor.packSize,
+        baseUnit: "case",
+        preferredVendorId: invoice.vendorId,
+      }
     : undefined;
 
   return (
@@ -159,7 +195,11 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
           {vendor ? <VendorBadge vendor={vendor} tone="solid" /> : null}
           <span className="text-sm font-semibold text-text">Invoice #{invoice.invoiceNumber}</span>
           <StatusBadge status={invoice.status} />
-          {invoice.confidence !== undefined ? <Badge tone={invoice.confidence >= 0.9 ? "success" : "warning"}>{pct(invoice.confidence, 0)} confidence</Badge> : null}
+          {invoice.confidence !== undefined ? (
+            <Badge tone={invoice.confidence >= 0.9 ? "success" : "warning"} title="How sure the AI is that it read the invoice correctly">
+              AI read it {pct(invoice.confidence, 0)} sure
+            </Badge>
+          ) : null}
         </div>
       </div>
 
@@ -170,11 +210,21 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
 
         <div className="min-w-0 space-y-4">
           <Card>
-            <CardHeader title="Extracted header" subtitle={invoice.notes} />
+            <CardHeader title="Invoice details" subtitle={invoice.notes} />
             <CardBody className="grid gap-3 sm:grid-cols-4">
               <Field label="Vendor">
                 {editable ? (
-                  <Select value={invoice.vendorId} onChange={(e) => actions.updateInvoice(invoice.id, { vendorId: e.target.value as VendorId }, `Invoice ${invoice.invoiceNumber} reassigned to ${state.vendors.find((v) => v.id === e.target.value)?.name ?? e.target.value}`)} aria-label="Vendor">
+                  <Select
+                    value={invoice.vendorId}
+                    onChange={(e) =>
+                      actions.updateInvoice(
+                        invoice.id,
+                        { vendorId: e.target.value as VendorId },
+                        `Invoice ${invoice.invoiceNumber} reassigned to ${state.vendors.find((v) => v.id === e.target.value)?.name ?? e.target.value}`,
+                      )
+                    }
+                    aria-label="Vendor"
+                  >
                     {state.vendors.map((v) => (
                       <option key={v.id} value={v.id}>
                         {v.name}
@@ -186,10 +236,19 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
                 )}
               </Field>
               <Field label="Invoice #">
-                <Input value={invoice.invoiceNumber} disabled={!editable} onChange={(e) => actions.updateInvoice(invoice.id, { invoiceNumber: e.target.value })} />
+                <Input
+                  value={invoice.invoiceNumber}
+                  disabled={!editable}
+                  onChange={(e) => actions.updateInvoice(invoice.id, { invoiceNumber: e.target.value })}
+                />
               </Field>
               <Field label="Date">
-                <Input type="date" value={invoice.date} disabled={!editable} onChange={(e) => actions.updateInvoice(invoice.id, { date: e.target.value })} />
+                <Input
+                  type="date"
+                  value={invoice.date}
+                  disabled={!editable}
+                  onChange={(e) => actions.updateInvoice(invoice.id, { date: e.target.value })}
+                />
               </Field>
               <Field label="Pages">
                 <div className="flex h-11 items-center text-sm text-text">{invoice.pages}</div>
@@ -199,37 +258,43 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
 
           <Card>
             <CardHeader
-              title={`Line items (${summary.merch.length})`}
-              subtitle="Original invoice on the left, what the AI read on the right. Fix anything that's wrong, match unknown items, then approve."
+              title={`Items on this invoice (${summary.merch.length})`}
+              subtitle="Compare with the original. Fix anything the AI got wrong and match any new items to a product, then approve."
             />
             <CardBody className="px-0 pb-0">
               <TableWrap className="rounded-none border-x-0 border-b-0">
-                <Table>
+                <Table className="min-w-0!">
                   <thead>
                     <tr>
-                      <Th>Description</Th>
+                      <Th>As printed</Th>
                       <Th align="right">Qty</Th>
-                      <Th align="right">Unit price</Th>
+                      <Th align="right">Price each</Th>
                       <Th align="right">Total</Th>
-                      <Th>Master product</Th>
-                      <Th>Checks</Th>
+                      <Th>Your product</Th>
                     </tr>
                   </thead>
                   <tbody>
                     {invoice.lines.map((line) => (
-                      <LineRow key={line.lineId} line={line} invoice={invoice} editable={editable} productOptions={productOptions} onMatch={(pid) => setMatch(line, pid)} />
+                      <LineRow
+                        key={line.lineId}
+                        line={line}
+                        invoice={invoice}
+                        editable={editable}
+                        productOptions={productOptions}
+                        onMatch={(pid) => setMatch(line, pid)}
+                      />
                     ))}
                   </tbody>
                 </Table>
               </TableWrap>
               <div className="grid gap-x-8 gap-y-1 px-5 py-4 text-sm sm:grid-cols-2">
                 <div className="space-y-1">
-                  <Row label="Merchandise" value={money(invoice.subtotal)} />
+                  <Row label="Items" value={money(invoice.subtotal)} />
                   {invoice.fees > 0 ? <Row label="Delivery & fuel fees" value={money(invoice.fees)} /> : null}
                   {invoice.tax > 0 ? <Row label="Sales tax" value={money(invoice.tax)} /> : null}
                 </div>
                 <div className="flex flex-col justify-end sm:items-end">
-                  <div className="text-xs uppercase tracking-wide text-muted">Invoice total</div>
+                  <div className="text-sm text-muted">Invoice total</div>
                   <div className="tabular text-2xl font-semibold text-text">{money(invoice.total)}</div>
                 </div>
               </div>
@@ -241,33 +306,42 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
               <div className="text-sm">
                 {editable ? (
                   <>
-                    <div className="font-semibold text-text">Approving this invoice will</div>
+                    <div className="font-semibold text-text">When you approve, we&apos;ll</div>
                     <ul className="mt-1 list-disc space-y-0.5 pl-5 text-text-2">
                       <li>
-                        record {summary.merch.length} purchases for {fmtDate(invoice.date)} in your price history
+                        save {summary.merch.length} purchases from {fmtDate(invoice.date)} to your price history
                       </li>
                       <li>
-                        update {vendor?.shortName} prices: {summary.ups} increase{summary.ups === 1 ? "" : "s"}, {summary.downs} decrease{summary.downs === 1 ? "" : "s"}, {summary.newSkus} new vendor SKU{summary.newSkus === 1 ? "" : "s"}
+                        update {vendor?.shortName} prices: {summary.ups} went up, {summary.downs} went down, {summary.newSkus} new item
+                        {summary.newSkus === 1 ? "" : "s"} for this vendor
                       </li>
-                      {summary.lowConf.length > 0 ? <li className="text-warning">{summary.lowConf.length} low-confidence line{summary.lowConf.length === 1 ? "" : "s"}: double-check the quantity against the paper</li> : null}
+                      {summary.lowConf.length > 0 ? (
+                        <li className="text-warning">
+                          {summary.lowConf.length} line{summary.lowConf.length === 1 ? "" : "s"} the AI wasn&apos;t sure about: double-check
+                          against the paper
+                        </li>
+                      ) : null}
                       {summary.unmatched.length > 0 ? (
                         <li className="text-danger">
-                          {summary.unmatched.length} unmatched item{summary.unmatched.length === 1 ? "" : "s"} must be matched or created first
+                          match {summary.unmatched.length} new item{summary.unmatched.length === 1 ? "" : "s"} to a product first
                         </li>
                       ) : null}
                       {badPrices.length > 0 ? (
                         <li className="text-danger">
-                          {badPrices.length} line{badPrices.length === 1 ? " has" : "s have"} a zero or missing price; fix them before approving
+                          {badPrices.length} line{badPrices.length === 1 ? " is" : "s are"} missing a price; add{" "}
+                          {badPrices.length === 1 ? "it" : "them"} first
                         </li>
                       ) : null}
                     </ul>
                   </>
                 ) : invoice.status === "approved" ? (
                   <div className="text-text-2">
-                    Approved {invoice.approvedAt ? fmtDate(invoice.approvedAt) : ""}. Prices from this invoice are live in the master product list.
+                    Approved {invoice.approvedAt ? fmtDate(invoice.approvedAt) : ""}. Its prices are now in Products &amp; prices.
                   </div>
                 ) : (
-                  <div className="text-text-2">Rejected{invoice.rejectReason ? `: ${invoice.rejectReason}` : ""}. Nothing from this invoice was saved.</div>
+                  <div className="text-text-2">
+                    Rejected{invoice.rejectReason ? `: ${invoice.rejectReason}` : ""}. Nothing from this invoice was saved.
+                  </div>
                 )}
               </div>
               {editable ? (
@@ -321,7 +395,7 @@ function titleCase(s: string): string {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
+      <div className="mb-1.5 text-sm font-medium text-text-2">{label}</div>
       {children}
     </div>
   );
@@ -339,9 +413,17 @@ function Row({ label, value }: { label: string; value: string }) {
 export function StatusBadge({ status }: { status: InvoiceRecord["status"] }) {
   switch (status) {
     case "processing":
-      return <Badge tone="info" dot>Reading…</Badge>;
+      return (
+        <Badge tone="info" dot>
+          Reading…
+        </Badge>
+      );
     case "needs-review":
-      return <Badge tone="warning" dot>Needs review</Badge>;
+      return (
+        <Badge tone="warning" dot>
+          Needs checking
+        </Badge>
+      );
     case "approved":
       return <Badge tone="success">Approved</Badge>;
     case "rejected":
@@ -375,24 +457,47 @@ function LineRow({
         <Td className="whitespace-normal">
           <div className="text-sm">{line.description}</div>
           {line.flags.map((f) => (
-            <div key={f} className="text-xs text-warning">{f}</div>
+            <div key={f} className="text-xs text-warning">
+              {f}
+            </div>
           ))}
         </Td>
         <Td align="right">—</Td>
         <Td align="right">—</Td>
         <Td align="right">{money(line.total)}</Td>
-        <Td><span className="text-xs">Fee</span></Td>
-        <Td><Badge tone="neutral">{pct(line.confidence, 0)}</Badge></Td>
+        <Td>
+          <span className="text-[13px]">Fee</span>
+        </Td>
       </tr>
     );
   }
 
   return (
     <tr className={cn(unmatched ? "bg-danger-soft/40" : low ? "bg-warning-soft/40" : undefined)}>
-      <Td className="min-w-56 whitespace-normal">
+      <Td className="min-w-48 whitespace-normal">
         <div className="text-sm font-medium text-text">{line.description}</div>
         <div className="text-xs text-muted">
           <span className="font-mono">{line.sku}</span> · {line.packSize}
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <Badge tone={low ? "warning" : "neutral"} title="How sure the AI is about this line">
+            {pct(line.confidence, 0)} sure
+          </Badge>
+          {line.previousPrice !== undefined && Math.abs(delta) > 0.005 ? (
+            <Badge tone={delta > 0 ? "danger" : "success"} title={`Was ${money(line.previousPrice)}`}>
+              {signedPct(delta)}
+            </Badge>
+          ) : null}
+          {unmatched ? (
+            <span className="inline-flex items-center gap-1 text-xs text-danger">
+              <CircleAlert className="h-3.5 w-3.5" /> New item
+            </span>
+          ) : null}
+          {low ? (
+            <span className="inline-flex items-center gap-1 text-xs text-warning">
+              <AlertTriangle className="h-3.5 w-3.5" /> Check qty
+            </span>
+          ) : null}
         </div>
       </Td>
       <Td align="right">
@@ -402,7 +507,7 @@ function LineRow({
             inputMode="decimal"
             value={line.qty}
             onChange={(e) => actions.updateInvoiceLine(invoice.id, line.lineId, { qty: Math.max(0, Number(e.target.value) || 0) })}
-            className={cn("h-9 w-20 text-right", low && "border-warning")}
+            className={cn("h-9! w-16! px-2! text-right", low && "border-warning")}
             aria-label="Quantity"
           />
         ) : (
@@ -418,14 +523,16 @@ function LineRow({
             value={line.unitPrice}
             onChange={(e) => {
               const unitPrice = Math.max(0, Number(e.target.value) || 0);
-              const factor = line.normalizationFactor ?? (line.unitPrice > 0 && line.normalizedUnitPrice ? line.normalizedUnitPrice / line.unitPrice : 1);
+              const factor =
+                line.normalizationFactor ??
+                (line.unitPrice > 0 && line.normalizedUnitPrice ? line.normalizedUnitPrice / line.unitPrice : 1);
               actions.updateInvoiceLine(invoice.id, line.lineId, {
                 unitPrice,
                 normalizationFactor: factor,
                 normalizedUnitPrice: line.productId ? round2(unitPrice * factor) : undefined,
               });
             }}
-            className="h-9 w-24 text-right"
+            className="h-9! w-20! px-2! text-right"
             aria-label="Unit price"
           />
         ) : (
@@ -435,11 +542,16 @@ function LineRow({
       <Td align="right" className="font-medium">
         {money(line.total)}
       </Td>
-      <Td className="min-w-56">
+      <Td className="min-w-48">
         {editable ? (
-          <Select value={line.productId ?? ""} onChange={(e) => onMatch(e.target.value)} className={cn("h-9 text-xs", unmatched && "border-danger")} aria-label="Master product">
-            <option value="">— Not matched —</option>
-            <option value="__new__">＋ Create new master product…</option>
+          <Select
+            value={line.productId ?? ""}
+            onChange={(e) => onMatch(e.target.value)}
+            className={cn("h-9! text-sm", unmatched && "border-danger")}
+            aria-label="Your product"
+          >
+            <option value="">Pick a product…</option>
+            <option value="__new__">＋ Add as a new product…</option>
             {productOptions.map((g) => (
               <optgroup key={g.category} label={g.category}>
                 {g.products.map((p) => (
@@ -451,25 +563,11 @@ function LineRow({
             ))}
           </Select>
         ) : (
-          <span className="text-sm text-text">{product?.name ?? <span className="text-muted">Not matched</span>}</span>
+          <span className="text-sm text-text">{product?.name ?? <span className="text-muted">No product</span>}</span>
         )}
-        {product && line.matchStatus === "suggested" ? <div className="mt-0.5 text-[11px] text-warning">Suggested match, please confirm</div> : null}
-      </Td>
-      <Td className="whitespace-normal">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge tone={low ? "warning" : "neutral"} title="Extraction confidence">{pct(line.confidence, 0)}</Badge>
-          {line.previousPrice !== undefined && Math.abs(delta) > 0.005 ? (
-            <Badge tone={delta > 0 ? "danger" : "success"} title={`Was ${money(line.previousPrice)}`}>
-              {signedPct(delta)}
-            </Badge>
-          ) : null}
-          {unmatched ? (
-            <span className="inline-flex items-center gap-1 text-xs text-danger"><CircleAlert className="h-3.5 w-3.5" /> New item</span>
-          ) : null}
-          {low ? (
-            <span className="inline-flex items-center gap-1 text-xs text-warning"><AlertTriangle className="h-3.5 w-3.5" /> Check qty</span>
-          ) : null}
-        </div>
+        {product && line.matchStatus === "suggested" ? (
+          <div className="mt-0.5 text-[12px] text-warning">Our best guess, please confirm</div>
+        ) : null}
       </Td>
     </tr>
   );

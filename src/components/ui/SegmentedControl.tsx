@@ -32,8 +32,8 @@ export function SegmentedControl<T extends string>({
             onClick={() => onChange(o.value)}
             className={cn(
               "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg font-medium transition-colors",
-              size === "sm" ? "h-8 px-3 text-xs" : "h-10 px-3.5 text-sm",
-              active ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text",
+              size === "sm" ? "h-8 px-3 text-xs" : "h-10 px-3.5 text-[15px]",
+              active ? "bg-surface text-text shadow-sm ring-1 ring-border" : "text-text-2 hover:text-text",
             )}
           >
             {o.label}
@@ -41,7 +41,7 @@ export function SegmentedControl<T extends string>({
               <span
                 className={cn(
                   "rounded-full px-1.5 text-[11px] tabular",
-                  active ? "bg-brand-soft text-brand dark:text-text" : "bg-surface-2 text-muted",
+                  active ? "bg-brand text-brand-fg" : "bg-surface text-muted",
                 )}
               >
                 {o.count}

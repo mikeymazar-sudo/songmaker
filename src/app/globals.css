@@ -3,55 +3,56 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --bg: #f3f5f9;
+  /* Warm, calm light theme: ink for actions, color only where it means something. */
+  --bg: #f6f5f1;
   --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --surface-3: #eef2f7;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --text: #0f172a;
-  --text-2: #334155;
-  --muted: #64748b;
-  --brand: #16365c;
-  --brand-hover: #1f4a7a;
-  --brand-soft: #e6eef7;
+  --surface-2: #faf9f6;
+  --surface-3: #f0eee9;
+  --border: #e7e4dd;
+  --border-strong: #d4d0c7;
+  --text: #1c1917;
+  --text-2: #44403c;
+  --muted: #78716c;
+  --brand: #1c1917;
+  --brand-hover: #2e2a26;
+  --brand-soft: #efece6;
   --brand-fg: #ffffff;
-  --accent: #2563eb;
+  --accent: #1d4ed8;
   --success: #15803d;
-  --success-soft: #dcfce7;
+  --success-soft: #e6f4ea;
   --warning: #b45309;
-  --warning-soft: #fef3c7;
+  --warning-soft: #fdf2df;
   --danger: #b91c1c;
-  --danger-soft: #fee2e2;
+  --danger-soft: #fdecec;
   --info: #1d4ed8;
-  --info-soft: #dbeafe;
-  --ring: #93c5fd;
+  --info-soft: #e8eefc;
+  --ring: #2563eb;
 }
 
 .dark {
-  --bg: #0b1220;
-  --surface: #111a2b;
-  --surface-2: #162238;
-  --surface-3: #1c2b45;
-  --border: #243552;
-  --border-strong: #35496b;
-  --text: #e6edf7;
-  --text-2: #c3cfe0;
-  --muted: #8da2bf;
-  --brand: #3b82f6;
-  --brand-hover: #60a5fa;
-  --brand-soft: #1b2f52;
-  --brand-fg: #0b1220;
-  --accent: #60a5fa;
+  --bg: #12110f;
+  --surface: #1c1a17;
+  --surface-2: #211f1b;
+  --surface-3: #2a2723;
+  --border: #34302b;
+  --border-strong: #4a453e;
+  --text: #f5f3ef;
+  --text-2: #d6d2ca;
+  --muted: #a19a90;
+  --brand: #f5f3ef;
+  --brand-hover: #ffffff;
+  --brand-soft: #2e2a25;
+  --brand-fg: #12110f;
+  --accent: #8fb0f8;
   --success: #4ade80;
-  --success-soft: #0f2e1d;
+  --success-soft: #12291b;
   --warning: #fbbf24;
-  --warning-soft: #3a2a07;
+  --warning-soft: #33260b;
   --danger: #f87171;
-  --danger-soft: #3b1212;
+  --danger-soft: #3a1515;
   --info: #93c5fd;
-  --info-soft: #172554;
-  --ring: #2563eb;
+  --info-soft: #172338;
+  --ring: #60a5fa;
 }
 
 @theme inline {
@@ -80,7 +81,7 @@
   --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --radius-card: 14px;
+  --radius-card: 16px;
 }
 
 html {

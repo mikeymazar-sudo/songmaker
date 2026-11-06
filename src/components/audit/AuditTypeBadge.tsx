@@ -2,7 +2,7 @@ import type { AuditType } from "@/lib/models";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 
 const META: Record<AuditType, { label: string; tone: BadgeTone }> = {
-  inventory: { label: "Inventory", tone: "info" },
+  inventory: { label: "Count", tone: "info" },
   order: { label: "Order", tone: "brand" },
   invoice: { label: "Invoice", tone: "warning" },
   price: { label: "Price", tone: "danger" },

@@ -67,11 +67,11 @@ export function AuditPage() {
   return (
     <>
       <PageHeader
-        title="Audit Log"
-        description="Every count, correction, approval and price change, newest first. Nothing in the app changes without a line here."
+        title="History"
+        description="Every count, correction, approval and price change, newest first. If something changed, it's written down here."
         actions={
           <Button variant="outline" icon={<Download className="h-4 w-4" />} onClick={exportCsv} disabled={entries.length === 0}>
-            Export CSV
+            Download (CSV)
           </Button>
         }
       />
@@ -85,12 +85,12 @@ export function AuditPage() {
           ]}
         />
         <div className="relative w-full md:w-72">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search the log…" className="pl-9" />
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search history" className="pl-10" aria-label="Search history" />
         </div>
       </div>
       {entries.length === 0 ? (
-        <EmptyState icon={<History className="h-8 w-8" />} title="No entries match" description="Try another filter or clear the search." />
+        <EmptyState icon={<History className="h-6 w-6" />} title="Nothing matches" description="Try another filter or clear the search." />
       ) : (
         <Card className="overflow-hidden">
           <TableWrap className="rounded-none border-0">
@@ -121,7 +121,7 @@ function AuditRow({ entry, showDay, day }: { entry: AuditEntry; showDay: boolean
     <>
       {showDay ? (
         <tr>
-          <td colSpan={4} className="border-b border-border bg-surface-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+          <td colSpan={4} className="border-b border-border bg-surface-2 px-5 pb-2 pt-4 text-[15px] font-semibold text-text">
             {day}
           </td>
         </tr>
@@ -132,8 +132,8 @@ function AuditRow({ entry, showDay, day }: { entry: AuditEntry; showDay: boolean
           <AuditTypeBadge type={entry.type} />
         </Td>
         <Td className="max-w-[640px] whitespace-normal">
-          <div className="font-medium text-text">{entry.summary}</div>
-          {entry.details ? <div className="mt-0.5 text-xs text-muted">{entry.details}</div> : null}
+          <div className="text-[15px] text-text">{entry.summary}</div>
+          {entry.details ? <div className="mt-0.5 text-[13px] text-muted">{entry.details}</div> : null}
         </Td>
         <Td className="whitespace-nowrap text-muted">{entry.actor}</Td>
       </tr>

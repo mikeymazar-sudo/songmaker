@@ -76,15 +76,15 @@ function ProductFormInner({ open, onClose, product, defaults, onSaved }: Product
     <Modal
       open={open}
       onClose={onClose}
-      title={product ? "Edit master product" : "New master product"}
-      subtitle="One record per product, no matter how many vendors sell it or what they call it."
+      title={product ? "Edit product" : "Add a product"}
+      subtitle="One entry per product, no matter how many vendors sell it or what they call it."
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={save} disabled={!valid}>
-            {product ? "Save changes" : "Create product"}
+            {product ? "Save changes" : "Add product"}
           </Button>
         </>
       }
@@ -105,7 +105,7 @@ function ProductFormInner({ open, onClose, product, defaults, onSaved }: Product
         <FormRow label="Typical pack size">
           <Input value={packSize} onChange={(e) => setPackSize(e.target.value)} placeholder="e.g. 2 / 20 lb" />
         </FormRow>
-        <FormRow label="Compare prices per" hint="Every vendor price is normalized to this unit.">
+        <FormRow label="Compare prices per" hint="Every vendor's price is converted to this unit so they can be compared fairly.">
           <Select value={baseUnit} onChange={(e) => setBaseUnit(e.target.value as Unit)}>
             {UNITS.map((u) => (
               <option key={u} value={u}>
@@ -114,9 +114,9 @@ function ProductFormInner({ open, onClose, product, defaults, onSaved }: Product
             ))}
           </Select>
         </FormRow>
-        <FormRow label="Preferred vendor" hint="Wins ties. Used when quality or reliability matters more than a few cents.">
+        <FormRow label="Usual vendor" hint="Wins when two prices are tied.">
           <Select value={preferred} onChange={(e) => setPreferred(e.target.value as VendorId | "")}>
-            <option value="">No preference</option>
+            <option value="">No favorite</option>
             {state.vendors.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -124,14 +124,14 @@ function ProductFormInner({ open, onClose, product, defaults, onSaved }: Product
             ))}
           </Select>
         </FormRow>
-        <FormRow label="Par level">
+        <FormRow label="Par (full shelf)" hint="How much you want after a delivery.">
           <Input type="number" inputMode="decimal" min={0} value={parLevel} onChange={(e) => setParLevel(e.target.value)} />
         </FormRow>
-        <FormRow label="On hand">
+        <FormRow label="On hand now">
           <Input type="number" inputMode="decimal" min={0} value={onHand} onChange={(e) => setOnHand(e.target.value)} />
         </FormRow>
         <FormRow label="Notes" className="sm:col-span-2">
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Spec, brand, grade, anything the match should respect" />
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Brand, grade, anything worth remembering" />
         </FormRow>
       </div>
     </Modal>

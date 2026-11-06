@@ -9,7 +9,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export const metadata: Metadata = {
   title: { default: "SmartPurchasing AI", template: "%s · SmartPurchasing AI" },
-  description: "Restaurant purchasing: invoices, master products, vendor price comparison and weekly ordering.",
+  description: "Count your stock, see the cheapest vendor for every item, and turn delivery invoices into up-to-date prices.",
   applicationName: "SmartPurchasing AI",
 };
 
@@ -18,8 +18,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f3f5f9" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f5f1" },
+    { media: "(prefers-color-scheme: dark)", color: "#12110f" },
   ],
 };
 

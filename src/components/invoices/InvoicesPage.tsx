@@ -65,8 +65,8 @@ export function InvoicesPage() {
   return (
     <>
       <PageHeader
-        title="Upload & Review Invoices"
-        description="Every delivery ticket goes through the same path: upload, AI extraction, your review, then approval into price history. Nothing is saved until you approve it."
+        title="Invoices"
+        description="When a delivery arrives, snap a photo of the invoice. The AI reads every line, you check it, and your prices update when you approve. Nothing changes until you approve."
       />
       <UploadPanel
         onCreated={(inv) => {
@@ -80,7 +80,7 @@ export function InvoicesPage() {
           value={filter}
           onChange={setFilter}
           options={[
-            { value: "review", label: "Needs review", count: counts.review },
+            { value: "review", label: "To check", count: counts.review },
             { value: "approved", label: "Approved", count: counts.approved },
             { value: "rejected", label: "Rejected", count: counts.rejected },
             { value: "all", label: "All", count: counts.all },
@@ -90,9 +90,9 @@ export function InvoicesPage() {
 
       {rows.length === 0 ? (
         <EmptyState
-          icon={<FileText className="h-8 w-8" />}
-          title={filter === "review" ? "Nothing waiting for review" : "No invoices here"}
-          description={filter === "review" ? "Upload a delivery ticket or try a sample above." : "Change the filter to see other invoices."}
+          icon={<FileText className="h-6 w-6" />}
+          title={filter === "review" ? "Nothing to check" : "No invoices here"}
+          description={filter === "review" ? "Add an invoice above, or practice with a sample." : "Pick another tab to see other invoices."}
         />
       ) : (
         <Card className="overflow-hidden">
@@ -101,11 +101,15 @@ export function InvoicesPage() {
               <thead>
                 <tr>
                   <Th>Vendor</Th>
-                  <Th>Invoice</Th>
-                  <Th>Date</Th>
-                  <Th align="right">Lines</Th>
+                  <Th>Invoice #</Th>
+                  <Th className="hidden sm:table-cell">Date</Th>
+                  <Th align="right" className="hidden sm:table-cell">
+                    Items
+                  </Th>
                   <Th align="right">Total</Th>
-                  <Th>Confidence</Th>
+                  <Th className="hidden lg:table-cell" title="How sure the AI is that it read the invoice correctly">
+                    AI read
+                  </Th>
                   <Th>Status</Th>
                   <Th />
                 </tr>
@@ -134,14 +138,15 @@ function InvoiceRow({ invoice, onOpen }: { invoice: InvoiceRecord; onOpen: () =>
       <Td>{vendor ? <VendorBadge vendor={vendor} tone="plain" /> : invoice.vendorId}</Td>
       <Td>
         <div className="font-medium text-text">#{invoice.invoiceNumber}</div>
-        {invoice.fileName ? <div className="text-xs text-muted">{invoice.fileName}</div> : null}
+        <div className="text-[13px] text-muted sm:hidden">{fmtDate(invoice.date)}</div>
+        {invoice.fileName ? <div className="hidden text-[13px] text-muted sm:block">{invoice.fileName}</div> : null}
       </Td>
-      <Td className="whitespace-nowrap">{fmtDate(invoice.date)}</Td>
-      <Td align="right">
+      <Td className="hidden whitespace-nowrap sm:table-cell">{fmtDate(invoice.date)}</Td>
+      <Td align="right" className="hidden sm:table-cell">
         {merch}
         {invoice.status === "needs-review" && (flags > 0 || unmatched > 0) ? (
-          <div className="text-[11px] text-warning">
-            {flags} flag{flags === 1 ? "" : "s"}
+          <div className="text-[12px] text-warning">
+            {flags} to check
             {unmatched > 0 ? ` · ${unmatched} new` : ""}
           </div>
         ) : null}
@@ -149,7 +154,7 @@ function InvoiceRow({ invoice, onOpen }: { invoice: InvoiceRecord; onOpen: () =>
       <Td align="right" className="font-medium">
         {money(invoice.total)}
       </Td>
-      <Td>
+      <Td className="hidden lg:table-cell">
         {invoice.confidence !== undefined ? (
           <Badge tone={invoice.confidence >= 0.9 ? "success" : "warning"}>{pct(invoice.confidence, 0)}</Badge>
         ) : (
@@ -161,7 +166,7 @@ function InvoiceRow({ invoice, onOpen }: { invoice: InvoiceRecord; onOpen: () =>
       </Td>
       <Td>
         <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onOpen(); }}>
-          {invoice.status === "needs-review" ? "Review" : "View"}
+          {invoice.status === "needs-review" ? "Check" : "Open"}
         </Button>
       </Td>
     </tr>

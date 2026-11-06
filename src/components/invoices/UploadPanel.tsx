@@ -55,7 +55,7 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
         id: pending.id,
         lines: sim.lines.map((l, i) => ({ ...l, lineId: `${pending.id}-l${i + 1}` })),
         extraction: "simulated",
-        notes: "Simulated extraction: add ANTHROPIC_API_KEY on the server to read real documents.",
+        notes: "Practice mode: this was simulated. Add ANTHROPIC_API_KEY on the server to read real invoices.",
       });
       return;
     }
@@ -86,7 +86,7 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
         patch,
         `Claude read invoice ${patch.invoiceNumber ?? ""}: ${merch} lines, ${unmatched} unmatched item${unmatched === 1 ? "" : "s"}, ${pct(patch.confidence ?? 0, 0)} average confidence`,
       );
-      toast({ title: "Invoice read", description: `${merch} line items extracted. Review and approve.` });
+      toast({ title: "Invoice read", description: `Found ${merch} items. Check them, then approve.` });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Network error";
       actions.rejectInvoice(pending.id, message);
@@ -99,7 +99,7 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
     if (list.length === 0) return;
     toast({
       title: list.length === 1 ? "Invoice uploaded" : `${list.length} invoices uploaded`,
-      description: extractionEnabled ? "Claude is reading the document and matching products…" : "Simulated extraction is running…",
+      description: extractionEnabled ? "The AI is reading it and matching your products…" : "Practice mode: simulating the read…",
       tone: "info",
     });
     for (const file of list) void runExtraction(file, source);
@@ -109,7 +109,7 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
     const inv = simulateExtraction(state, vendorId, "sample", `${vendorId}-sample.jpg`);
     actions.addInvoice(inv);
     onCreated(inv);
-    toast({ title: "Sample invoice queued", description: "A simulated delivery based on this vendor's last real invoice.", tone: "info" });
+    toast({ title: "Sample invoice added", description: "A practice copy of this vendor's last real invoice.", tone: "info" });
   };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -130,30 +130,32 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
           onDrop={onDrop}
           className={cn(
             "flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors",
-            dragging ? "border-brand bg-brand-soft" : "border-border-strong bg-surface-2",
+            dragging ? "border-text bg-surface-3" : "border-border-strong bg-surface-2",
           )}
         >
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-soft text-brand dark:text-text">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-text shadow-sm ring-1 ring-border">
             <Upload className="h-6 w-6" />
           </span>
-          <h3 className="mt-3 text-base font-semibold text-text">Drop invoices here</h3>
-          <p className="mt-1 max-w-sm text-sm text-muted">
-            PDF or photos, up to four at once. Claude reads the header and every line item, matches each line to your master products, and hands it to you for approval.
+          <h3 className="mt-3 text-lg font-semibold tracking-tight text-text">Add a delivery invoice</h3>
+          <p className="mt-1 max-w-sm text-[15px] text-text-2">
+            Take a photo or drop a PDF here, up to four at once. The AI reads every line and matches it to your products for you to check.
           </p>
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <Button icon={<FileUp className="h-4 w-4" />} onClick={() => fileRef.current?.click()}>
-              Choose files
-            </Button>
-            <Button variant="outline" icon={<Camera className="h-4 w-4" />} onClick={() => cameraRef.current?.click()}>
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Button size="lg" icon={<Camera className="h-5 w-5" />} onClick={() => cameraRef.current?.click()}>
               Take a photo
             </Button>
+            <Button size="lg" variant="outline" icon={<FileUp className="h-5 w-5" />} onClick={() => fileRef.current?.click()}>
+              Choose files
+            </Button>
           </div>
-          <div className="mt-3">
+          <div className="mt-4">
             {extractionEnabled ? (
-              <Badge tone="success" dot>Real extraction on</Badge>
+              <Badge tone="success" dot>
+                AI reading is on
+              </Badge>
             ) : (
-              <Badge tone="warning" dot title="Add ANTHROPIC_API_KEY on the server to read real documents">
-                Simulated extraction
+              <Badge tone="warning" dot title="Add ANTHROPIC_API_KEY on the server to read real invoices">
+                Practice mode: invoices are simulated
               </Badge>
             )}
           </div>
@@ -183,9 +185,11 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
 
         <div className="flex flex-col gap-3">
           <div>
-            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted">Vendor</label>
-            <Select value={vendorChoice} onChange={(e) => setVendorChoice(e.target.value as VendorId | "auto")}>
-              <option value="auto">Detect from the document</option>
+            <label htmlFor="upload-vendor" className="mb-1.5 block text-sm font-medium text-text-2">
+              Which vendor is it from?
+            </label>
+            <Select id="upload-vendor" value={vendorChoice} onChange={(e) => setVendorChoice(e.target.value as VendorId | "auto")}>
+              <option value="auto">Figure it out from the invoice</option>
               {state.vendors.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}
@@ -193,9 +197,9 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
               ))}
             </Select>
           </div>
-          <div className="rounded-xl border border-border bg-surface-2 p-3">
-            <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-              <Sparkles className="h-3.5 w-3.5" /> Try a sample delivery
+          <div className="rounded-xl border border-border bg-surface-2 p-4">
+            <div className="mb-2.5 flex items-center gap-1.5 text-sm font-medium text-text-2">
+              <Sparkles className="h-4 w-4 text-muted" /> Practice with a sample invoice
             </div>
             <div className="flex flex-wrap gap-2">
               {state.vendors.map((v) => (
@@ -204,7 +208,9 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
                 </Button>
               ))}
             </div>
-            <p className="mt-2 text-xs text-muted">Samples are simulated from the vendor&apos;s last real invoice, with a few price changes and one new item, so you can practice the review flow.</p>
+            <p className="mt-2.5 text-[13px] leading-snug text-muted">
+              Each sample copies that vendor&apos;s last real invoice with a few price changes and one new item, so you can practice checking one.
+            </p>
           </div>
         </div>
       </CardBody>

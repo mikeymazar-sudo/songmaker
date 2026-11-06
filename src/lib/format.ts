@@ -11,10 +11,15 @@ const usd3 = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 3,
 });
+const usd0 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const num = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 
 export function money(n: number): string {
   return usd.format(Number.isFinite(n) ? n : 0);
+}
+/** Whole dollars, for big round figures like yearly savings. */
+export function moneyWhole(n: number): string {
+  return usd0.format(Number.isFinite(n) ? n : 0);
 }
 export function money3(n: number): string {
   return usd3.format(Number.isFinite(n) ? n : 0);

@@ -13,7 +13,7 @@ export function Th({ className, align, ...rest }: ThHTMLAttributes<HTMLTableCell
   return (
     <th
       className={cn(
-        "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-surface-2 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted",
+        "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-surface-2 px-3 py-2.5 text-[13px] font-medium text-muted first:pl-5 last:pr-5",
         align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left",
         className,
       )}
@@ -26,7 +26,7 @@ export function Td({ className, align, ...rest }: TdHTMLAttributes<HTMLTableCell
   return (
     <td
       className={cn(
-        "border-b border-border px-3 py-2.5 align-middle text-text",
+        "border-b border-border px-3 py-3 align-middle text-text first:pl-5 last:pr-5",
         align === "right" ? "tabular text-right" : align === "center" ? "text-center" : "text-left",
         className,
       )}

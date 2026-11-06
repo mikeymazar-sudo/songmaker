@@ -40,7 +40,7 @@ export function GlobalSearch() {
 
   return (
     <div ref={boxRef} className="relative w-full">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted" />
       <input
         value={q}
         onChange={(e) => {
@@ -56,22 +56,22 @@ export function GlobalSearch() {
           }
           if (e.key === "Escape") setOpen(false);
         }}
-        placeholder="Search products, vendors, invoices…"
+        placeholder="Search any product, vendor or invoice"
         aria-label="Global search"
-        className="h-10 w-full rounded-xl border border-border bg-surface-2 pl-9 pr-3 text-sm text-text placeholder:text-muted focus:border-accent focus:bg-surface focus:outline-none"
+        className="h-11 w-full rounded-xl border border-border bg-surface pl-10 pr-3 text-[15px] text-text placeholder:text-muted focus:border-text focus:outline-none focus:ring-2 focus:ring-ring/25"
       />
       {open && q.trim().length >= 2 ? (
-        <div className="absolute left-0 right-0 top-12 z-40 overflow-hidden rounded-xl border border-border bg-surface shadow-xl">
+        <div className="absolute left-0 right-0 top-13 z-40 overflow-hidden rounded-2xl border border-border bg-surface p-1.5 shadow-xl">
           {!hasResults ? (
             <div className="px-4 py-3 text-sm text-muted">No matches for “{q.trim()}”.</div>
           ) : null}
           {results.products.length > 0 ? (
             <div>
-              <div className="px-4 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Products</div>
+              <div className="px-3 pb-1 pt-2 text-[13px] font-medium text-muted">Products</div>
               {results.products.map((p) => (
                 <button
                   key={p.id}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2"
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-surface-3"
                   onClick={() => {
                     setUi({ productQuery: p.name, selectedProductId: p.id, nonce: Date.now() });
                     router.push("/products");
@@ -91,14 +91,14 @@ export function GlobalSearch() {
             </div>
           ) : null}
           {results.invoices.length > 0 ? (
-            <div className="border-t border-border">
-              <div className="px-4 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Invoices</div>
+            <div className="mt-1 border-t border-border pt-1">
+              <div className="px-3 pb-1 pt-2 text-[13px] font-medium text-muted">Invoices</div>
               {results.invoices.map((i) => {
                 const vendor = state.vendors.find((v) => v.id === i.vendorId);
                 return (
                   <button
                     key={i.id}
-                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-surface-3"
                     onClick={() => {
                       setUi({ selectedInvoiceId: i.id, nonce: Date.now() });
                       router.push("/invoices");
@@ -112,7 +112,7 @@ export function GlobalSearch() {
                         {vendor?.name} · #{i.invoiceNumber}
                       </span>
                       <span className="block text-xs text-muted">
-                        {fmtDate(i.date)} · {money(i.total)} · {i.status.replace("-", " ")}
+                        {fmtDate(i.date)} · {money(i.total)} · {i.status === "needs-review" ? "needs checking" : i.status}
                       </span>
                     </span>
                   </button>
