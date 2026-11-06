@@ -9,6 +9,7 @@ export interface ExtractedLine extends InvoiceLine {
   confidence: number;            // 0..1
   matchStatus: MatchStatus;
   normalizedUnitPrice?: number;  // price per the product's base unit
+  normalizationFactor?: number;  // base units per billed unit (normalizedUnitPrice = unitPrice * factor)
   previousPrice?: number;        // previous price per base unit at this vendor
   flags: string[];
 }
@@ -151,3 +152,20 @@ export interface RoutingResult {
 }
 
 export type CategoryFilter = Category | "All";
+
+export function emptyState(): AppState {
+  return {
+    version: 1,
+    seededAt: "",
+    restaurantName: "SmartPurchasing AI",
+    vendors: [],
+    products: [],
+    vendorProducts: [],
+    priceHistory: [],
+    invoices: [],
+    purchaseOrders: [],
+    orderOverrides: {},
+    routing: { mode: "smart", singleVendorId: "cheney", lineOverrides: {} },
+    audit: [],
+  };
+}

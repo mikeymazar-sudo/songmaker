@@ -10,7 +10,7 @@ import { Input, Select } from "@/components/ui/Field";
 import { Table, TableWrap, Td, Th } from "@/components/ui/Table";
 import { useToast } from "@/components/ui/Toast";
 import { VendorBadge } from "@/components/ui/VendorBadge";
-import { CATEGORIES } from "@/data/types";
+import { CATEGORIES, type VendorId } from "@/data/types";
 import { cn, fmtDate, fmtNum, money, pct, round2, signedPct } from "@/lib/format";
 import type { ExtractedLine, InvoiceRecord } from "@/lib/models";
 import { useActions, useApp } from "@/lib/store";
@@ -89,7 +89,8 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
   if (invoice.status === "processing") return <ProcessingCard invoice={invoice} />;
 
   const editable = invoice.status === "needs-review";
-  const canApprove = editable && summary.unmatched.length === 0;
+  const badPrices = invoice.lines.filter((l) => !l.isFee && (!(l.unitPrice > 0) || (l.productId && !((l.normalizedUnitPrice ?? l.unitPrice) > 0))));
+  const canApprove = editable && summary.unmatched.length === 0 && badPrices.length === 0;
 
   const productOptions = CATEGORIES.map((c) => ({
     category: c,
@@ -107,17 +108,28 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
     }
     const product = state.products.find((p) => p.id === productId);
     const vp = state.vendorProducts.find((x) => x.productId === productId && x.vendorId === invoice.vendorId);
+    // Per case: the billed price is the base-unit price. Otherwise keep the model's normalization if it
+    // exists; if not, start from the billed price and ask the reviewer to confirm the per-unit figure.
+    const factor =
+      product?.baseUnit === "case" ? 1 : line.normalizationFactor ?? (line.unitPrice > 0 && line.normalizedUnitPrice ? line.normalizedUnitPrice / line.unitPrice : 1);
+    const flags = line.flags.filter((f) => !f.startsWith("New item") && !f.startsWith("Confirm the price per"));
+    if (product && product.baseUnit !== "case" && factor === 1) flags.push(`Confirm the price per ${product.baseUnit}`);
     actions.updateInvoiceLine(invoice.id, line.lineId, {
       productId,
       category: product?.category,
       matchStatus: "matched",
-      normalizedUnitPrice: product?.baseUnit === "case" ? line.unitPrice : (line.normalizedUnitPrice ?? line.unitPrice),
+      normalizedUnitPrice: round2(line.unitPrice * factor),
+      normalizationFactor: factor,
       previousPrice: vp?.price,
-      flags: line.flags.filter((f) => !f.startsWith("New item")),
+      flags,
     });
   };
 
   const approve = () => {
+    if (invoice.extraction === "simulated" || invoice.source === "sample") {
+      const ok = window.confirm("This is a simulated sample, not a real delivery. Approving writes its prices into your real catalog. Continue?");
+      if (!ok) return;
+    }
     actions.approveInvoice(invoice.id);
     toast({
       title: `Invoice ${invoice.invoiceNumber} approved`,
@@ -161,7 +173,17 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
             <CardHeader title="Extracted header" subtitle={invoice.notes} />
             <CardBody className="grid gap-3 sm:grid-cols-4">
               <Field label="Vendor">
-                <div className="flex h-11 items-center text-sm font-medium text-text">{vendor?.name}</div>
+                {editable ? (
+                  <Select value={invoice.vendorId} onChange={(e) => actions.updateInvoice(invoice.id, { vendorId: e.target.value as VendorId }, `Invoice ${invoice.invoiceNumber} reassigned to ${state.vendors.find((v) => v.id === e.target.value)?.name ?? e.target.value}`)} aria-label="Vendor">
+                    {state.vendors.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <div className="flex h-11 items-center text-sm font-medium text-text">{vendor?.name}</div>
+                )}
               </Field>
               <Field label="Invoice #">
                 <Input value={invoice.invoiceNumber} disabled={!editable} onChange={(e) => actions.updateInvoice(invoice.id, { invoiceNumber: e.target.value })} />
@@ -231,6 +253,11 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
                       {summary.unmatched.length > 0 ? (
                         <li className="text-danger">
                           {summary.unmatched.length} unmatched item{summary.unmatched.length === 1 ? "" : "s"} must be matched or created first
+                        </li>
+                      ) : null}
+                      {badPrices.length > 0 ? (
+                        <li className="text-danger">
+                          {badPrices.length} line{badPrices.length === 1 ? " has" : "s have"} a zero or missing price; fix them before approving
                         </li>
                       ) : null}
                     </ul>
@@ -391,10 +418,11 @@ function LineRow({
             value={line.unitPrice}
             onChange={(e) => {
               const unitPrice = Math.max(0, Number(e.target.value) || 0);
-              const ratio = line.unitPrice > 0 ? unitPrice / line.unitPrice : 1;
+              const factor = line.normalizationFactor ?? (line.unitPrice > 0 && line.normalizedUnitPrice ? line.normalizedUnitPrice / line.unitPrice : 1);
               actions.updateInvoiceLine(invoice.id, line.lineId, {
                 unitPrice,
-                normalizedUnitPrice: line.normalizedUnitPrice !== undefined ? round2(line.normalizedUnitPrice * ratio) : undefined,
+                normalizationFactor: factor,
+                normalizedUnitPrice: line.productId ? round2(unitPrice * factor) : undefined,
               });
             }}
             className="h-9 w-24 text-right"

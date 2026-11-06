@@ -87,9 +87,11 @@ export function simulateExtraction(
     if (confidence < 0.7) flags.push("Low confidence: quantity read from a smudged line");
     let normalizedUnitPrice: number | undefined;
     let previousPrice: number | undefined;
+    let normalizationFactor: number | undefined;
     if (vp) {
       previousPrice = vp.price;
       normalizedUnitPrice = round2(vp.price * factor);
+      normalizationFactor = unitPrice > 0 ? normalizedUnitPrice / unitPrice : 1;
       if (factor !== 1) {
         const delta = (normalizedUnitPrice - vp.price) / vp.price;
         flags.push(`${delta > 0 ? "Price increase" : "Price decrease"} vs last invoice (${(delta * 100).toFixed(1)}%)`);
@@ -108,6 +110,7 @@ export function simulateExtraction(
       confidence,
       matchStatus: product ? (confidence < 0.7 ? "suggested" : "matched") : "unmatched",
       normalizedUnitPrice,
+      normalizationFactor,
       previousPrice,
       flags,
     });

@@ -36,7 +36,8 @@ function ResetButton() {
       title="Reset to seed data"
       aria-label="Reset to seed data"
       onClick={async () => {
-        if (!window.confirm("Reset the database to the original seed data? Counts, uploads and purchase orders will be deleted for everyone.")) return;
+        const typed = window.prompt("This deletes every count, invoice and purchase order for everyone and restores the seed data. Type RESET to continue.");
+        if (typed !== "RESET") return;
         try {
           await reset();
           toast({ title: "Data reset", description: "Back to the original seed data.", tone: "info" });

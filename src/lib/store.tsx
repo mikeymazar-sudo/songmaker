@@ -2,17 +2,17 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { VendorId } from "@/data/types";
-import type {
-  AppState,
-  AuditEntry,
-  ExtractedLine,
-  InvoiceRecord,
-  PriceHistoryEntry,
-  ProductRecord,
-  PurchaseOrder,
-  RoutingSettings,
+import {
+  emptyState,
+  type AppState,
+  type AuditEntry,
+  type ExtractedLine,
+  type InvoiceRecord,
+  type PriceHistoryEntry,
+  type ProductRecord,
+  type PurchaseOrder,
+  type RoutingSettings,
 } from "./models";
-import { buildInitialState } from "@/data/initialState";
 import { routeOrder } from "./pricing";
 import { fmtNum, money, nowISO, round2, signedPct, uid, unitLabel } from "./format";
 import { diffState } from "./sync";
@@ -22,7 +22,6 @@ const AUDIT_LIMIT = 800;
 
 export type Action =
   | { type: "HYDRATE"; state: AppState }
-  | { type: "RESET"; ts: string }
   | { type: "SET_ON_HAND"; productId: string; value: number; ts: string }
   | { type: "SET_PAR"; productId: string; value: number; ts: string }
   | { type: "SET_ORDER_QTY"; productId: string; value: number | null; ts: string }
@@ -52,28 +51,25 @@ function reducer(state: AppState, action: Action): AppState {
     case "HYDRATE":
       return action.state;
 
-    case "RESET": {
-      const fresh = buildInitialState();
-      return withAudit(fresh, {
-        ts: action.ts,
-        type: "system",
-        summary: "Demo data reset to the original seed",
-        entityType: "system",
-      });
-    }
-
     case "SET_ON_HAND": {
       const product = state.products.find((p) => p.id === action.productId);
       if (!product) return state;
       const value = Math.max(0, round2(action.value));
       if (value === product.onHand) return state;
       let next = patchProduct(state, product.id, { onHand: value });
+      // A fresh count always wins over a manual order-quantity override.
+      if (next.orderOverrides[product.id] !== undefined) {
+        const overrides = { ...next.orderOverrides };
+        delete overrides[product.id];
+        next = { ...next, orderOverrides: overrides };
+      }
       const last = next.audit[0];
       const summary = `On-hand count for ${product.name} set to ${fmtNum(value)} ${unitLabel(product.baseUnit)}`;
       if (
         last &&
         last.type === "inventory" &&
         last.entityId === product.id &&
+        last.summary.startsWith("On-hand count for ") &&
         new Date(action.ts).getTime() - new Date(last.ts).getTime() < 120_000
       ) {
         next = { ...next, audit: [{ ...last, ts: action.ts, summary }, ...next.audit.slice(1)] };
@@ -94,7 +90,13 @@ function reducer(state: AppState, action: Action): AppState {
       if (!product) return state;
       const value = Math.max(0, round2(action.value));
       if (value === product.parLevel) return state;
-      return withAudit(patchProduct(state, product.id, { parLevel: value }), {
+      let next = patchProduct(state, product.id, { parLevel: value });
+      if (next.orderOverrides[product.id] !== undefined) {
+        const overrides = { ...next.orderOverrides };
+        delete overrides[product.id];
+        next = { ...next, orderOverrides: overrides };
+      }
+      return withAudit(next, {
         ts: action.ts,
         type: "inventory",
         summary: `Par level for ${product.name} changed ${fmtNum(product.parLevel)} → ${fmtNum(value)} ${unitLabel(product.baseUnit)}`,
@@ -292,17 +294,22 @@ function reducer(state: AppState, action: Action): AppState {
         const product = state.products.find((p) => p.id === line.productId);
         if (!product) continue;
         const newPrice = round2(line.normalizedUnitPrice ?? line.unitPrice);
+        if (!(newPrice > 0)) continue;
         const idx = vendorProducts.findIndex((vp) => vp.productId === product.id && vp.vendorId === inv.vendorId);
         const previous = idx >= 0 ? vendorProducts[idx].price : undefined;
         if (idx >= 0) {
-          vendorProducts[idx] = {
-            ...vendorProducts[idx],
-            price: newPrice,
-            lastInvoiceDate: inv.date,
-            source: "invoice",
-            sku: vendorProducts[idx].sku || line.sku,
-          };
-          updated += 1;
+          const current = vendorProducts[idx];
+          const isNewer = !current.lastInvoiceDate || inv.date >= current.lastInvoiceDate;
+          if (isNewer) {
+            vendorProducts[idx] = {
+              ...current,
+              price: newPrice,
+              lastInvoiceDate: inv.date,
+              source: "invoice",
+              sku: current.sku || line.sku,
+            };
+            updated += 1;
+          }
         } else {
           vendorProducts.push({
             productId: product.id,
@@ -501,7 +508,7 @@ async function runSync(run: SyncRun): Promise<void> {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, () => buildInitialState());
+  const [state, dispatch] = useReducer(reducer, undefined, () => emptyState());
   const [hydrated, setHydrated] = useState(false);
   const [auth, setAuth] = useState<AuthStatus>("checking");
   const [authMessage, setAuthMessage] = useState<string | null>(null);
@@ -514,6 +521,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastSynced = useRef<AppState | null>(null);
   const inFlight = useRef(false);
   const dirty = useRef(false);
+  const failures = useRef(0);
+  const latest = useRef<AppState>(state);
+
+  const hasUnsaved = useCallback(() => {
+    const base = lastSynced.current;
+    return Boolean(base && latest.current !== base && diffState(base, latest.current));
+  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -547,6 +561,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => window.clearTimeout(t);
   }, [reload]);
 
+  // Keep the latest state reachable from callbacks without re-subscribing them.
+  useEffect(() => {
+    latest.current = state;
+  }, [state]);
+
+  // Another device may have changed things: refetch when this tab comes back, unless there are unsaved edits here.
+  useEffect(() => {
+    if (auth !== "ok") return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || inFlight.current || hasUnsaved()) return;
+      void reload();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [auth, reload, hasUnsaved]);
+
+  useEffect(() => {
+    const onUnload = (e: BeforeUnloadEvent) => {
+      if (inFlight.current || hasUnsaved()) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [hasUnsaved]);
+
   // Incremental sync: debounce, diff against the last state the server confirmed, retry on failure.
   useEffect(() => {
     if (!hydrated || auth !== "ok") return;
@@ -558,11 +603,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         inFlight,
         dirty,
         onStatus: (status, error) => {
+          if (status === "error") failures.current += 1;
+          else if (status === "saved") failures.current = 0;
           setSyncStatus(status);
-          setSyncError(error);
+          setSyncError(failures.current >= 5 && error ? `${error}. Automatic retries paused; reload the page to try again.` : error);
         },
         onSignedOut: () => setAuth("required"),
-        onRetry: () => setTick((t) => t + 1),
+        onRetry: () => {
+          if (failures.current < 5) setTick((t) => t + 1);
+        },
       });
     }, 300);
     return () => window.clearTimeout(timer);
@@ -584,11 +633,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    // Push any unsaved edits before the session ends.
+    if (hasUnsaved() && !inFlight.current) {
+      await runSync({
+        state: latest.current,
+        lastSynced,
+        inFlight,
+        dirty,
+        onStatus: (status, error) => {
+          setSyncStatus(status);
+          setSyncError(error);
+        },
+        onSignedOut: () => undefined,
+        onRetry: () => undefined,
+      });
+    }
     await fetch("/api/auth/logout", { method: "POST" });
     setAuth("required");
     setHydrated(false);
     lastSynced.current = null;
-  }, []);
+  }, [hasUnsaved]);
 
   const reset = useCallback(async () => {
     const res = await fetch("/api/reset", { method: "POST" });

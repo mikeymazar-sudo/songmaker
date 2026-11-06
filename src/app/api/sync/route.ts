@@ -1,7 +1,8 @@
-import { isAuthenticated, unauthorized } from "@/lib/server/auth";
+import { forbidden, isAuthenticated, sameOrigin, unauthorized } from "@/lib/server/auth";
 import { applySync, type SyncRequest } from "@/lib/server/db";
 
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) return forbidden();
   if (!isAuthenticated(request)) return unauthorized();
   let body: SyncRequest;
   try {

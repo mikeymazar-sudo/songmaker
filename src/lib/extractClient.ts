@@ -55,9 +55,22 @@ export function buildPendingInvoice(vendorId: VendorId, source: InvoiceRecord["s
 }
 
 /** Turns the extraction API response into the fields of a reviewable invoice record. */
-export function finalizeExtraction(state: AppState, pending: InvoiceRecord, data: ExtractResponse): Partial<InvoiceRecord> {
+function isCalendarDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+export function finalizeExtraction(
+  state: AppState,
+  pending: InvoiceRecord,
+  data: ExtractResponse,
+  userVendorChoice?: VendorId,
+): Partial<InvoiceRecord> {
   const inv = data.invoice;
-  const vendorId = inv.vendorId ?? pending.vendorId;
+  // The owner's explicit choice wins; the document's own claim is only a fallback.
+  const vendorId = userVendorChoice ?? inv.vendorId ?? pending.vendorId;
   const vendor = state.vendors.find((v) => v.id === vendorId);
   const productIds = new Set(state.products.map((p) => p.id));
 
@@ -69,6 +82,10 @@ export function finalizeExtraction(state: AppState, pending: InvoiceRecord, data
     const confidence = Math.max(0, Math.min(1, Number(l.confidence) || 0));
     let normalized = l.normalizedUnitPrice ?? undefined;
     if (product && normalized === undefined && product.baseUnit === "case") normalized = l.unitPrice;
+    if (product && normalized !== undefined && normalized <= 0) normalized = undefined;
+    const unitPrice = round2(Number(l.unitPrice) || 0);
+    const normalizationFactor = product && normalized !== undefined && unitPrice > 0 ? normalized / unitPrice : undefined;
+    if (product && product.baseUnit !== "case" && normalized === undefined) flags.push(`Confirm the price per ${product.baseUnit}`);
     if (vp && normalized !== undefined && vp.price > 0) {
       const delta = (normalized - vp.price) / vp.price;
       if (Math.abs(delta) > 0.005) flags.push(`${delta > 0 ? "Price increase" : "Price decrease"} vs last invoice (${(delta * 100).toFixed(1)}%)`);
@@ -81,7 +98,7 @@ export function finalizeExtraction(state: AppState, pending: InvoiceRecord, data
       description: l.description,
       packSize: l.packSize || "",
       qty: round2(Number(l.qty) || 0),
-      unitPrice: round2(Number(l.unitPrice) || 0),
+      unitPrice,
       total: round2(Number(l.total) || round2((Number(l.qty) || 0) * (Number(l.unitPrice) || 0))),
       isFee: Boolean(l.isFee),
       productId,
@@ -89,6 +106,7 @@ export function finalizeExtraction(state: AppState, pending: InvoiceRecord, data
       confidence,
       matchStatus: l.isFee ? "matched" : productId ? (confidence >= 0.8 ? "matched" : "suggested") : "unmatched",
       normalizedUnitPrice: productId ? normalized : undefined,
+      normalizationFactor,
       previousPrice: vp?.price,
       flags: Array.from(new Set(flags)),
     };
@@ -102,13 +120,14 @@ export function finalizeExtraction(state: AppState, pending: InvoiceRecord, data
   const notes: string[] = [];
   if (inv.notes) notes.push(inv.notes);
   if (printedTotal > 0 && Math.abs(printedTotal - computed) > 0.05) notes.push(`Printed total ${printedTotal.toFixed(2)} differs from extracted lines (${computed.toFixed(2)}).`);
-  if (!inv.vendorId) notes.push(`Vendor on document: ${inv.vendorNameOnDocument || "unknown"}; assigned to ${vendor?.name ?? vendorId}.`);
+  if (!inv.vendorId && !userVendorChoice) notes.push(`Vendor on document: ${inv.vendorNameOnDocument || "unknown"}; assigned to ${vendor?.name ?? vendorId}. Change it before approving if that is wrong.`);
+  if (inv.vendorId && userVendorChoice && inv.vendorId !== userVendorChoice) notes.push(`The document looks like ${state.vendors.find((v) => v.id === inv.vendorId)?.name ?? inv.vendorId}; kept your choice of ${vendor?.name ?? vendorId}.`);
   const confidence = lines.length ? round2(lines.reduce((s, l) => s + l.confidence, 0) / lines.length) : 0;
 
   return {
     vendorId,
     invoiceNumber: inv.invoiceNumber || pending.invoiceNumber,
-    date: /^\d{4}-\d{2}-\d{2}$/.test(inv.date) ? inv.date : pending.date,
+    date: isCalendarDate(inv.date) ? inv.date : pending.date,
     pages: Math.max(1, Math.round(Number(inv.pages) || 1)),
     status: "needs-review",
     subtotal,

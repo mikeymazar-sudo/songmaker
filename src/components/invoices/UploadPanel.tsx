@@ -78,7 +78,7 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
         return;
       }
       const data = (await res.json()) as ExtractResponse;
-      const patch = finalizeExtraction(state, pending, data);
+      const patch = finalizeExtraction(state, pending, data, vendorChoice === "auto" ? undefined : vendorChoice);
       const merch = (patch.lines ?? []).filter((l) => !l.isFee).length;
       const unmatched = (patch.lines ?? []).filter((l) => !l.isFee && l.matchStatus === "unmatched").length;
       actions.updateInvoice(

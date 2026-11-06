@@ -1,3 +1,4 @@
+import "server-only";
 import type { AppState, AuditEntry, ExtractedLine, InvoiceRecord, PriceHistoryEntry } from "@/lib/models";
 import { vendors, products, vendorProducts, invoices } from "./seed";
 import { extraHistory } from "./history";

@@ -218,12 +218,18 @@ export const fromRow = {
 
 // ---------- load / seed / sync ----------
 
-async function selectAll<T>(table: string, map: (r: Row) => T, order?: { column: string; ascending: boolean }): Promise<T[]> {
+async function selectAll<T>(
+  table: string,
+  map: (r: Row) => T,
+  order?: { column: string; ascending: boolean },
+  tiebreak = "id",
+): Promise<T[]> {
   const out: T[] = [];
   const page = 1000;
   for (let from = 0; ; from += page) {
     let q = db().from(table).select("*").range(from, from + page - 1);
     if (order) q = q.order(order.column, { ascending: order.ascending });
+    q = q.order(tiebreak, { ascending: true });
     const { data, error } = await q;
     if (error) throw new Error(`${table}: ${error.message}`);
     for (const r of data ?? []) out.push(map(r as Row));
@@ -241,7 +247,7 @@ export async function loadState(): Promise<AppState | null> {
   const [vendors, products, vendorProducts, priceHistory, invoices, purchaseOrders, audit] = await Promise.all([
     selectAll("vendors", fromRow.vendor),
     selectAll("products", fromRow.product, { column: "name", ascending: true }),
-    selectAll("vendor_products", fromRow.vendorProduct),
+    selectAll("vendor_products", fromRow.vendorProduct, { column: "product_id", ascending: true }, "vendor_id"),
     selectAll("price_history", fromRow.priceHistory, { column: "date", ascending: false }),
     selectAll("invoices", fromRow.invoice, { column: "date", ascending: false }),
     selectAll("purchase_orders", fromRow.purchaseOrder, { column: "created_at", ascending: false }),
@@ -267,25 +273,29 @@ export async function loadState(): Promise<AppState | null> {
   };
 }
 
-async function upsertChunked(table: string, rows: Row[], onConflict?: string): Promise<void> {
+async function upsertChunked(table: string, rows: Row[], onConflict?: string, ignoreDuplicates = false): Promise<void> {
   for (let i = 0; i < rows.length; i += 500) {
     const chunk = rows.slice(i, i + 500);
-    const { error } = await db().from(table).upsert(chunk, onConflict ? { onConflict } : undefined);
+    const { error } = await db().from(table).upsert(chunk, { onConflict, ignoreDuplicates });
     if (error) throw new Error(`${table} upsert: ${error.message}`);
   }
 }
 
 export async function writeFullState(state: AppState, seededAt: string): Promise<void> {
-  await upsertChunked("vendors", state.vendors.map(toRow.vendor));
-  await upsertChunked("products", state.products.map(toRow.product));
-  await upsertChunked("vendor_products", state.vendorProducts.map(toRow.vendorProduct), "product_id,vendor_id");
-  await upsertChunked("price_history", state.priceHistory.map(toRow.priceHistory));
-  await upsertChunked("invoices", state.invoices.map(toRow.invoice));
-  await upsertChunked("purchase_orders", state.purchaseOrders.map(toRow.purchaseOrder));
-  await upsertChunked("audit_log", state.audit.map(toRow.audit));
+  // Seeding only ever fills an empty database; existing rows are never overwritten.
+  await upsertChunked("vendors", state.vendors.map(toRow.vendor), "id", true);
+  await upsertChunked("products", state.products.map(toRow.product), "id", true);
+  await upsertChunked("vendor_products", state.vendorProducts.map(toRow.vendorProduct), "product_id,vendor_id", true);
+  await upsertChunked("price_history", state.priceHistory.map(toRow.priceHistory), "id", true);
+  await upsertChunked("invoices", state.invoices.map(toRow.invoice), "id", true);
+  await upsertChunked("purchase_orders", state.purchaseOrders.map(toRow.purchaseOrder), "id", true);
+  await upsertChunked("audit_log", state.audit.map(toRow.audit), "id", true);
   const { error } = await db()
     .from("app_settings")
-    .upsert({ id: "default", restaurant_name: state.restaurantName, order_overrides: state.orderOverrides, routing: state.routing, seeded_at: seededAt, updated_at: new Date().toISOString() });
+    .upsert(
+      { id: "default", restaurant_name: state.restaurantName, order_overrides: state.orderOverrides, routing: state.routing, seeded_at: seededAt, updated_at: new Date().toISOString() },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
   if (error) throw new Error(`app_settings upsert: ${error.message}`);
 }
 
@@ -301,11 +311,9 @@ export async function seedIfEmpty(): Promise<AppState> {
 }
 
 export async function resetAll(): Promise<AppState> {
-  const tables = ["audit_log", "purchase_orders", "invoices", "price_history", "vendor_products", "products", "vendors", "app_settings"];
-  for (const t of tables) {
-    const { error } = await db().from(t).delete().neq("id", "__none__");
-    if (error) throw new Error(`${t} delete: ${error.message}`);
-  }
+  // One transactional truncate on the database side; nothing is half-deleted.
+  const { error } = await db().rpc("app_reset_all");
+  if (error) throw new Error(`reset: ${error.message}`);
   return seedIfEmpty();
 }
 

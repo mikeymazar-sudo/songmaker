@@ -47,7 +47,7 @@ export function diffState(prev: AppState, next: AppState): SyncRequest | null {
       const json = JSON.stringify(item);
       if (beforeMap.get(k) !== json) upserts.push(item);
     }
-    const deletes = [...beforeMap.keys()].filter((k) => !seen.has(k));
+    const deletes = c.table === "audit_log" ? [] : [...beforeMap.keys()].filter((k) => !seen.has(k));
     if (upserts.length > 0) {
       req.upserts[c.table] = upserts;
       changed = true;

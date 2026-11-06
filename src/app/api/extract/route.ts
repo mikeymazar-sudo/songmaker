@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
-import { isAuthenticated, unauthorized } from "@/lib/server/auth";
+import { forbidden, isAuthenticated, sameOrigin, unauthorized } from "@/lib/server/auth";
 import { loadState } from "@/lib/server/db";
 import { isConfigured, serverEnv } from "@/lib/server/env";
 
@@ -65,6 +65,7 @@ Extract every line on the document:
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
 
 export async function POST(request: Request) {
+  if (!sameOrigin(request)) return forbidden();
   if (!isAuthenticated(request)) return unauthorized();
   if (!isConfigured().extraction) {
     return Response.json({ error: "Real extraction needs ANTHROPIC_API_KEY on the server." }, { status: 503 });
@@ -79,13 +80,22 @@ export async function POST(request: Request) {
   const file = form.get("file");
   if (!(file instanceof File)) return Response.json({ error: "Missing file" }, { status: 400 });
   if (file.size > 4_000_000) return Response.json({ error: "File is larger than 4 MB. Take a smaller photo or split the PDF." }, { status: 413 });
-  const vendorHint = String(form.get("vendorId") ?? "");
+  const rawHint = String(form.get("vendorId") ?? "");
+  const vendorHint = (VENDOR_IDS as readonly string[]).includes(rawHint) ? rawHint : "";
 
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-  const mediaType = isPdf ? "application/pdf" : IMAGE_TYPES.has(file.type) ? file.type : "image/jpeg";
+  if (!isPdf && !IMAGE_TYPES.has(file.type)) {
+    return Response.json({ error: `Unsupported file type ${file.type || "unknown"}. Use a JPEG, PNG, WebP or PDF.` }, { status: 415 });
+  }
+  const mediaType = isPdf ? "application/pdf" : file.type;
   const data = Buffer.from(await file.arrayBuffer()).toString("base64");
 
-  const state = await loadState();
+  let state: Awaited<ReturnType<typeof loadState>> = null;
+  try {
+    state = await loadState();
+  } catch (err) {
+    return Response.json({ error: err instanceof Error ? err.message : "Could not load the catalog" }, { status: 500 });
+  }
   const catalog = (state?.products ?? [])
     .filter((p) => !p.archived)
     .map((p) => ({ id: p.id, name: p.name, category: p.category, packSize: p.packSize, baseUnit: p.baseUnit }));
@@ -130,6 +140,9 @@ export async function POST(request: Request) {
     }
     if (error instanceof Anthropic.APIError) {
       return Response.json({ error: `Model API error ${error.status}: ${error.message}` }, { status: 502 });
+    }
+    if (error instanceof Anthropic.AnthropicError) {
+      return Response.json({ error: "The model's answer could not be parsed. Try a clearer photo or fewer pages." }, { status: 502 });
     }
     return Response.json({ error: error instanceof Error ? error.message : "Extraction failed" }, { status: 500 });
   }
