@@ -9,9 +9,9 @@ export function InvoicePaper({ invoice, vendor }: { invoice: InvoiceRecord; vend
   const preview = getPreview(invoice.id);
   if (preview) {
     return (
-      <div className="rounded-xl border border-border bg-surface-2 p-3">
+      <div className="rounded-2xl bg-surface-3 p-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={preview} alt={`Uploaded invoice ${invoice.invoiceNumber}`} className="mx-auto max-h-[70vh] rounded-lg object-contain shadow" />
+        <img src={preview} alt={`Uploaded invoice ${invoice.invoiceNumber}`} className="mx-auto max-h-[70vh] rounded-lg object-contain" />
         <p className="mt-2 text-center text-xs text-muted">{invoice.fileName}</p>
       </div>
     );
@@ -19,8 +19,8 @@ export function InvoicePaper({ invoice, vendor }: { invoice: InvoiceRecord; vend
   const merchandise = invoice.lines.filter((l) => !l.isFee);
   const fees = invoice.lines.filter((l) => l.isFee);
   return (
-    <div className="rounded-xl border border-border bg-surface-2 p-3 sm:p-5">
-      <div className="mx-auto max-w-lg rotate-[-0.4deg] rounded-sm bg-white px-6 py-6 font-mono text-[11px] leading-relaxed text-slate-800 shadow-[0_10px_30px_rgba(15,23,42,0.18)] dark:bg-slate-100">
+    <div className="overflow-x-auto rounded-2xl bg-surface-3 p-3 sm:p-5">
+      <div className="mx-auto max-w-lg rounded-sm bg-white px-4 py-5 font-mono text-[11px] leading-relaxed text-slate-800 sm:px-6 dark:bg-slate-100">
         <div className="flex items-start justify-between border-b border-dashed border-slate-300 pb-3">
           <div>
             <div className="text-sm font-bold uppercase tracking-wide">{vendor?.name ?? invoice.vendorId}</div>

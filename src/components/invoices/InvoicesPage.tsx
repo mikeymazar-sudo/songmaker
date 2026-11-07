@@ -1,16 +1,11 @@
 "use client";
 
-import { FileText } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { List, Row } from "@/components/ui/List";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { Table, TableWrap, Td, Th } from "@/components/ui/Table";
-import { VendorBadge } from "@/components/ui/VendorBadge";
-import { fmtDate, money, pct } from "@/lib/format";
+import { Tabs } from "@/components/ui/Tabs";
+import { fmtDate, money } from "@/lib/format";
 import type { InvoiceRecord } from "@/lib/models";
 import { useApp } from "@/lib/store";
 import { InvoiceReview, StatusBadge } from "./InvoiceReview";
@@ -64,10 +59,7 @@ export function InvoicesPage() {
 
   return (
     <>
-      <PageHeader
-        title="Invoices"
-        description="When a delivery arrives, snap a photo of the invoice. The AI reads every line, you check it, and your prices update when you approve. Nothing changes until you approve."
-      />
+      <PageHeader title="Invoices" description="Snap it. Prices update when you approve." />
       <UploadPanel
         onCreated={(inv) => {
           setFilter("review");
@@ -75,53 +67,29 @@ export function InvoicesPage() {
         }}
       />
 
-      <div className="mt-6 mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <SegmentedControl<Filter>
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: "review", label: "To check", count: counts.review },
-            { value: "approved", label: "Approved", count: counts.approved },
-            { value: "rejected", label: "Rejected", count: counts.rejected },
-            { value: "all", label: "All", count: counts.all },
-          ]}
-        />
-      </div>
+      <Tabs<Filter>
+        className="mt-8"
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { value: "review", label: "To check", count: counts.review },
+          { value: "approved", label: "Approved", count: counts.approved },
+          { value: "rejected", label: "Rejected", count: counts.rejected },
+          { value: "all", label: "All", count: counts.all },
+        ]}
+      />
 
       {rows.length === 0 ? (
         <EmptyState
-          icon={<FileText className="h-6 w-6" />}
           title={filter === "review" ? "Nothing to check" : "No invoices here"}
-          description={filter === "review" ? "Add an invoice above, or practice with a sample." : "Pick another tab to see other invoices."}
+          description={filter === "review" ? "Add an invoice above when a delivery arrives." : "Pick another tab to see other invoices."}
         />
       ) : (
-        <Card className="overflow-hidden">
-          <TableWrap className="rounded-none border-0">
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Vendor</Th>
-                  <Th>Invoice #</Th>
-                  <Th className="hidden sm:table-cell">Date</Th>
-                  <Th align="right" className="hidden sm:table-cell">
-                    Items
-                  </Th>
-                  <Th align="right">Total</Th>
-                  <Th className="hidden lg:table-cell" title="How sure the AI is that it read the invoice correctly">
-                    AI read
-                  </Th>
-                  <Th>Status</Th>
-                  <Th />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((i) => (
-                  <InvoiceRow key={i.id} invoice={i} onOpen={() => setSelectedId(i.id)} />
-                ))}
-              </tbody>
-            </Table>
-          </TableWrap>
-        </Card>
+        <List>
+          {rows.map((i) => (
+            <InvoiceRow key={i.id} invoice={i} onOpen={() => setSelectedId(i.id)} />
+          ))}
+        </List>
       )}
     </>
   );
@@ -130,45 +98,15 @@ export function InvoicesPage() {
 function InvoiceRow({ invoice, onOpen }: { invoice: InvoiceRecord; onOpen: () => void }) {
   const { state } = useApp();
   const vendor = state.vendors.find((v) => v.id === invoice.vendorId);
-  const merch = invoice.lines.filter((l) => !l.isFee).length;
-  const flags = invoice.lines.reduce((s, l) => s + l.flags.length, 0);
-  const unmatched = invoice.lines.filter((l) => !l.isFee && l.matchStatus === "unmatched").length;
   return (
-    <tr onClick={onOpen} className="cursor-pointer hover:bg-surface-2/70">
-      <Td>{vendor ? <VendorBadge vendor={vendor} tone="plain" /> : invoice.vendorId}</Td>
-      <Td>
-        <div className="font-medium text-text">#{invoice.invoiceNumber}</div>
-        <div className="text-[13px] text-muted sm:hidden">{fmtDate(invoice.date)}</div>
-        {invoice.fileName ? <div className="hidden text-[13px] text-muted sm:block">{invoice.fileName}</div> : null}
-      </Td>
-      <Td className="hidden whitespace-nowrap sm:table-cell">{fmtDate(invoice.date)}</Td>
-      <Td align="right" className="hidden sm:table-cell">
-        {merch}
-        {invoice.status === "needs-review" && (flags > 0 || unmatched > 0) ? (
-          <div className="text-[12px] text-warning">
-            {flags} to check
-            {unmatched > 0 ? ` · ${unmatched} new` : ""}
-          </div>
-        ) : null}
-      </Td>
-      <Td align="right" className="font-medium">
-        {money(invoice.total)}
-      </Td>
-      <Td className="hidden lg:table-cell">
-        {invoice.confidence !== undefined ? (
-          <Badge tone={invoice.confidence >= 0.9 ? "success" : "warning"}>{pct(invoice.confidence, 0)}</Badge>
-        ) : (
-          <span className="text-muted">—</span>
-        )}
-      </Td>
-      <Td>
-        <StatusBadge status={invoice.status} />
-      </Td>
-      <Td>
-        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onOpen(); }}>
-          {invoice.status === "needs-review" ? "Check" : "Open"}
-        </Button>
-      </Td>
-    </tr>
+    <li>
+      <Row
+        onClick={onOpen}
+        title={vendor?.name ?? invoice.vendorId}
+        subtitle={`#${invoice.invoiceNumber} · ${fmtDate(invoice.date)}`}
+        value={money(invoice.total)}
+        detail={<StatusBadge status={invoice.status} />}
+      />
+    </li>
   );
 }

@@ -1,21 +1,28 @@
 "use client";
 
-import { Download, History, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Download, Search } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Field";
+import { List } from "@/components/ui/List";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { Table, TableWrap, Td, Th } from "@/components/ui/Table";
+import { Tabs } from "@/components/ui/Tabs";
 import { fmtDate, fmtTime } from "@/lib/format";
-import type { AuditEntry, AuditType } from "@/lib/models";
+import type { AuditType } from "@/lib/models";
 import { useApp } from "@/lib/store";
-import { AuditTypeBadge, auditTypeLabel } from "./AuditTypeBadge";
 
 type Filter = AuditType | "all";
-const TYPES: AuditType[] = ["inventory", "order", "invoice", "price", "product", "system"];
+
+const TYPE_LABEL: Record<AuditType, string> = {
+  inventory: "Count",
+  order: "Order",
+  invoice: "Invoice",
+  price: "Price",
+  product: "Item",
+  system: "System",
+};
+const TYPES = Object.keys(TYPE_LABEL) as AuditType[];
 
 function csvEscape(s: string): string {
   return `"${s.replace(/"/g, '""')}"`;
@@ -54,12 +61,11 @@ export function AuditPage() {
     URL.revokeObjectURL(url);
   };
 
-  const rowsWithDay = useMemo(
+  const rows = useMemo(
     () =>
       entries.map((e, i) => {
         const day = fmtDate(e.ts);
-        const prevDay = i > 0 ? fmtDate(entries[i - 1].ts) : "";
-        return { entry: e, day, showDay: day !== prevDay };
+        return { entry: e, day, showDay: day !== (i > 0 ? fmtDate(entries[i - 1].ts) : "") };
       }),
     [entries],
   );
@@ -68,75 +74,48 @@ export function AuditPage() {
     <>
       <PageHeader
         title="History"
-        description="Every count, correction, approval and price change, newest first. If something changed, it's written down here."
+        description="Every change, newest first."
         actions={
-          <Button variant="outline" icon={<Download className="h-4 w-4" />} onClick={exportCsv} disabled={entries.length === 0}>
-            Download (CSV)
+          <Button variant="secondary" size="sm" icon={<Download className="h-4 w-4" />} onClick={exportCsv} disabled={entries.length === 0}>
+            CSV
           </Button>
         }
       />
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <SegmentedControl<Filter>
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: "all", label: "All", count: counts.all },
-            ...TYPES.map((t) => ({ value: t, label: auditTypeLabel(t), count: counts[t] })),
-          ]}
+      <div className="relative mb-2">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted" strokeWidth={1.75} />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search history"
+          enterKeyHint="search"
+          className="border-transparent bg-surface-3 pl-10 focus:bg-surface"
+          aria-label="Search history"
         />
-        <div className="relative w-full md:w-72">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search history" className="pl-10" aria-label="Search history" />
-        </div>
       </div>
+      <Tabs<Filter>
+        value={filter}
+        onChange={setFilter}
+        options={[{ value: "all", label: "All", count: counts.all }, ...TYPES.map((t) => ({ value: t, label: TYPE_LABEL[t], count: counts[t] }))]}
+      />
       {entries.length === 0 ? (
-        <EmptyState icon={<History className="h-6 w-6" />} title="Nothing matches" description="Try another filter or clear the search." />
+        <EmptyState title="Nothing matches" description="Try another filter or clear the search." />
       ) : (
-        <Card className="overflow-hidden">
-          <TableWrap className="rounded-none border-0">
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Time</Th>
-                  <Th>Type</Th>
-                  <Th>What happened</Th>
-                  <Th>Who</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {rowsWithDay.map(({ entry, day, showDay }) => (
-                  <AuditRow key={entry.id} entry={entry} showDay={showDay} day={day} />
-                ))}
-              </tbody>
-            </Table>
-          </TableWrap>
-        </Card>
+        <List>
+          {rows.map(({ entry, day, showDay }) => (
+            <Fragment key={entry.id}>
+              {showDay ? <li className="pb-2 pt-6 text-[13px] font-semibold text-muted">{day}</li> : null}
+              <li className="py-3">
+                <div className="text-[15px] leading-snug text-text">{entry.summary}</div>
+                {entry.details ? <div className="mt-0.5 text-[13px] leading-snug text-muted">{entry.details}</div> : null}
+                <div className="mt-1 text-[13px] text-muted">
+                  {fmtTime(entry.ts)} · {TYPE_LABEL[entry.type]}
+                  {entry.actor !== TYPE_LABEL[entry.type] ? ` · ${entry.actor}` : ""}
+                </div>
+              </li>
+            </Fragment>
+          ))}
+        </List>
       )}
-    </>
-  );
-}
-
-function AuditRow({ entry, showDay, day }: { entry: AuditEntry; showDay: boolean; day: string }) {
-  return (
-    <>
-      {showDay ? (
-        <tr>
-          <td colSpan={4} className="border-b border-border bg-surface-2 px-5 pb-2 pt-4 text-[15px] font-semibold text-text">
-            {day}
-          </td>
-        </tr>
-      ) : null}
-      <tr className="hover:bg-surface-2/60">
-        <Td className="tabular whitespace-nowrap text-muted">{fmtTime(entry.ts)}</Td>
-        <Td>
-          <AuditTypeBadge type={entry.type} />
-        </Td>
-        <Td className="max-w-[640px] whitespace-normal">
-          <div className="text-[15px] text-text">{entry.summary}</div>
-          {entry.details ? <div className="mt-0.5 text-[13px] text-muted">{entry.details}</div> : null}
-        </Td>
-        <Td className="whitespace-nowrap text-muted">{entry.actor}</Td>
-      </tr>
     </>
   );
 }

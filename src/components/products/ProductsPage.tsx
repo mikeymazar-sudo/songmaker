@@ -1,16 +1,14 @@
 "use client";
 
-import { Check, ChevronRight, Package, Plus, Search } from "lucide-react";
-import { Fragment } from "react";
-import { useEffect, useMemo, useState } from "react";
-import { Badge } from "@/components/ui/Badge";
+import { Check, Plus, Search } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Input, Select } from "@/components/ui/Field";
+import { Input } from "@/components/ui/Field";
+import { List, Row } from "@/components/ui/List";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Table, TableWrap, Td, Th } from "@/components/ui/Table";
-import { VendorDot } from "@/components/ui/VendorBadge";
+import { Table, Td, Th } from "@/components/ui/Table";
+import { Tabs } from "@/components/ui/Tabs";
 import { CATEGORIES } from "@/data/types";
 import { cn, fmtNum, money, pct } from "@/lib/format";
 import type { CategoryFilter, ProductRecord } from "@/lib/models";
@@ -61,222 +59,152 @@ export function ProductsPage() {
   }, [state, query, category, showArchived]);
 
   const selected: ProductRecord | null = selectedId ? (state.products.find((p) => p.id === selectedId) ?? null) : null;
-  const multiVendor = rows.filter((r) => r.quotes.length > 1).length;
+  const categoriesInUse = CATEGORIES.filter((c) => state.products.some((p) => p.category === c));
 
   return (
     <>
       <PageHeader
-        title="Products & prices"
-        description="Everything you buy, with each vendor's price side by side. Prices include delivery fees, so the cheapest one really is the cheapest."
+        title="Items"
+        description="Best price, delivery fees included."
         actions={
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setAdding(true)}>
-            Add product
+          <Button size="sm" icon={<Plus className="h-4 w-4" />} onClick={() => setAdding(true)}>
+            Add
           </Button>
         }
       />
 
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name, pack size or vendor item #"
-            className="pl-10"
-            aria-label="Search products"
-          />
-        </div>
-        <Select value={category} onChange={(e) => setCategory(e.target.value as CategoryFilter)} className="md:w-64" aria-label="Category">
-          <option value="All">All categories</option>
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </Select>
-        <label className="flex h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-border-strong bg-surface px-3.5 text-[15px] text-text-2">
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={(e) => setShowArchived(e.target.checked)}
-            className="h-4 w-4 accent-[var(--brand)]"
-          />
+      <div className="relative mb-2">
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted" strokeWidth={1.75} />
+        <Input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Name, pack size or vendor item #"
+          enterKeyHint="search"
+          className="border-transparent bg-surface-3 pl-10 focus:bg-surface"
+          aria-label="Search items"
+        />
+      </div>
+
+      <div className="sticky top-[var(--topbar-h)] z-10 -mx-4 bg-bg px-4 md:mx-0 md:px-0">
+        <Tabs
+          value={category}
+          onChange={setCategory}
+          options={[{ value: "All" as CategoryFilter, label: "All" }, ...categoriesInUse.map((c) => ({ value: c as CategoryFilter, label: c }))]}
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-3 pt-3 text-[13px] text-muted">
+        <span>
+          {rows.length} item{rows.length === 1 ? "" : "s"}
+        </span>
+        <label className="flex h-9 cursor-pointer items-center gap-2">
+          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="h-4 w-4 accent-[var(--brand)]" />
           Show archived
         </label>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-        <span>
-          {rows.length} product{rows.length === 1 ? "" : "s"} · {multiVendor} sold by more than one vendor
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-flex h-5 items-center gap-1 rounded-md bg-success-soft px-1.5 text-[12px] font-semibold text-success">
-            <Check className="h-3 w-3" strokeWidth={3} />$
-          </span>
-          = cheapest, fees included
-        </span>
-      </div>
-
       {rows.length === 0 ? (
-        <EmptyState icon={<Package className="h-6 w-6" />} title="No products match" description="Try a different search or category." />
+        <EmptyState title="No items match" description="Try a different search or category." />
       ) : (
         <>
-          {/* Phones: one line per product with its best price; tap for every vendor */}
-          <Card className="overflow-hidden md:hidden">
-            <ul className="divide-y divide-border">
-              {rows.map(({ product, quotes, best, spread }, i) => {
-                const need = suggestedQty(product);
-                const newGroup = i === 0 || rows[i - 1].product.category !== product.category;
-                return (
-                  <Fragment key={product.id}>
-                    {newGroup ? (
-                      <li className="bg-surface-2/70 px-4 pb-2 pt-4 text-[15px] font-semibold text-text">{product.category}</li>
-                    ) : null}
-                    <li>
-                      <button
-                        type="button"
+          {/* Phones and portrait tablets: one line per item with its best price; tap for every vendor */}
+          <div className="lg:hidden">
+            {rows.map(({ product, best }, i) => {
+              const need = suggestedQty(product);
+              const newGroup = i === 0 || rows[i - 1].product.category !== product.category;
+              return (
+                <Fragment key={product.id}>
+                  {newGroup ? <h2 className="border-b border-border pb-2 pt-5 text-[13px] font-semibold text-muted">{product.category}</h2> : null}
+                  <List>
+                    <li className="border-b border-border">
+                      <Row
                         onClick={() => setSelectedId(product.id)}
-                        className={cn(
-                          "flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface-2",
-                          product.archived && "opacity-60",
-                        )}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[15px] font-medium text-text">{product.name}</div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[13px] text-muted">
-                            <span className="tabular">
-                              {fmtNum(product.onHand)} / {fmtNum(product.parLevel)} on hand
-                            </span>
-                            {need > 0 ? <span className="font-medium text-warning">· order {fmtNum(need)}</span> : null}
-                          </div>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          {best ? (
-                            <>
-                              <div className="tabular text-[15px] font-semibold text-text">{money(best.landedPrice)}</div>
-                              <div className="flex items-center justify-end gap-1 text-[12px] text-muted">
-                                <VendorDot vendor={best.vendor} className="h-2 w-2" />
-                                {best.vendor.shortName}
-                                {spread ? ` · ${quotes.length} vendors` : ""}
-                              </div>
-                            </>
-                          ) : (
-                            <span className="text-[13px] text-muted">No price</span>
-                          )}
-                        </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
-                      </button>
+                        className={cn(product.archived && "opacity-50")}
+                        title={product.name}
+                        subtitle={
+                          <>
+                            {fmtNum(product.onHand)} of {fmtNum(product.parLevel)} on hand
+                            {need > 0 ? <span className="font-medium text-text"> · order {fmtNum(need)}</span> : null}
+                          </>
+                        }
+                        value={best ? money(best.landedPrice) : <span className="text-muted">No price</span>}
+                        detail={best ? best.vendor.shortName : undefined}
+                      />
                     </li>
-                  </Fragment>
-                );
-              })}
-            </ul>
-          </Card>
-          <Card className="hidden overflow-hidden md:block">
-            <TableWrap className="rounded-none border-0">
-              <Table>
-                <thead>
-                  <tr>
-                    <Th className="min-w-56">Product</Th>
-                    <Th>On hand / par</Th>
-                    {state.vendors.map((v) => (
-                      <Th key={v.id} align="right">
-                        <span className="inline-flex items-center gap-1.5">
-                          <VendorDot vendor={v} />
-                          {v.shortName}
-                        </span>
-                      </Th>
-                    ))}
-                    <Th align="right" title="How much more the priciest vendor charges than the cheapest">
-                      Price gap
+                  </List>
+                </Fragment>
+              );
+            })}
+          </div>
+
+          {/* Wide screens: side-by-side price matrix */}
+          <div className="hidden overflow-x-auto lg:block">
+            <Table>
+              <thead>
+                <tr>
+                  <Th className="min-w-52">Item</Th>
+                  <Th>On hand</Th>
+                  {state.vendors.map((v) => (
+                    <Th key={v.id} align="right">
+                      {v.shortName}
                     </Th>
-                    <Th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(({ product, quotes, best, spread }, i) => {
-                    const need = suggestedQty(product);
-                    const newGroup = i === 0 || rows[i - 1].product.category !== product.category;
-                    return (
-                      <Fragment key={product.id}>
-                        {newGroup ? (
-                          <tr>
-                            <td
-                              colSpan={state.vendors.length + 4}
-                              className="border-b border-border bg-surface-2/70 px-5 pb-2 pt-4 text-[15px] font-semibold text-text"
-                            >
-                              {product.category}
-                            </td>
-                          </tr>
-                        ) : null}
-                        <tr
-                          onClick={() => setSelectedId(product.id)}
-                          className={cn("cursor-pointer hover:bg-surface-2/70", product.archived && "opacity-60")}
-                        >
-                          <Td className="whitespace-normal">
-                            <div className="text-[15px] font-medium text-text">{product.name}</div>
-                            <div className="text-[13px] text-muted">
-                              {product.packSize} · priced per {product.baseUnit}
-                              {product.archived ? " · archived" : ""}
-                            </div>
-                          </Td>
-                          <Td className="whitespace-nowrap">
-                            <span className="tabular text-text">
-                              {fmtNum(product.onHand)} / {fmtNum(product.parLevel)}
-                            </span>
-                            {need > 0 ? (
-                              <Badge tone="warning" className="ml-2">
-                                Order {fmtNum(need)}
-                              </Badge>
-                            ) : null}
-                          </Td>
-                          {state.vendors.map((v) => {
-                            const q = quotes.find((x) => x.vendorId === v.id);
-                            const isBest = q && best && q.vendorId === best.vendorId;
-                            return (
-                              <Td
-                                key={v.id}
-                                align="right"
-                                className={cn(isBest && quotes.length > 1 && "bg-success-soft/70 font-semibold text-success")}
-                              >
-                                {q ? (
-                                  <>
-                                    <span className="inline-flex items-center gap-1">
-                                      {isBest && quotes.length > 1 ? (
-                                        <Check className="h-3.5 w-3.5" strokeWidth={3} aria-label="Cheapest" />
-                                      ) : null}
-                                      {money(q.landedPrice)}
-                                    </span>
-                                    {q.landedPrice !== q.price ? (
-                                      <div className="text-[11px] font-normal text-muted">{money(q.price)} + fee</div>
-                                    ) : null}
-                                  </>
-                                ) : (
-                                  <span className="text-muted">—</span>
-                                )}
-                              </Td>
-                            );
-                          })}
-                          <Td align="right">
-                            {spread ? (
-                              <Badge tone={spread.spreadPct > 0.25 ? "danger" : spread.spreadPct > 0.08 ? "warning" : "neutral"}>
-                                {pct(spread.spreadPct, 0)}
-                              </Badge>
-                            ) : (
-                              <span className="text-[13px] text-muted">{quotes.length === 1 ? "Only 1 vendor" : "No prices"}</span>
-                            )}
-                          </Td>
-                          <Td>
-                            <ChevronRight className="h-4 w-4 text-muted" />
-                          </Td>
+                  ))}
+                  <Th align="right" title="How much more the priciest vendor charges than the cheapest">
+                    Gap
+                  </Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ product, quotes, best, spread }, i) => {
+                  const need = suggestedQty(product);
+                  const newGroup = i === 0 || rows[i - 1].product.category !== product.category;
+                  return (
+                    <Fragment key={product.id}>
+                      {newGroup ? (
+                        <tr>
+                          <td colSpan={state.vendors.length + 3} className="border-b border-border pb-2 pt-6 text-[13px] font-semibold text-muted">
+                            {product.category}
+                          </td>
                         </tr>
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </Table>
-            </TableWrap>
-          </Card>
+                      ) : null}
+                      <tr onClick={() => setSelectedId(product.id)} className={cn("cursor-pointer hover:bg-surface-2", product.archived && "opacity-50")}>
+                        <Td>
+                          <div className="text-[15px] font-medium text-text">{product.name}</div>
+                          <div className="text-[13px] text-muted">
+                            {product.packSize}
+                            {product.archived ? " · archived" : ""}
+                          </div>
+                        </Td>
+                        <Td className="tabular whitespace-nowrap">
+                          {fmtNum(product.onHand)} / {fmtNum(product.parLevel)}
+                          {need > 0 ? <div className="text-[13px] font-medium text-text">order {fmtNum(need)}</div> : null}
+                        </Td>
+                        {state.vendors.map((v) => {
+                          const q = quotes.find((x) => x.vendorId === v.id);
+                          const cheapest = q && best && q.vendorId === best.vendorId && quotes.length > 1;
+                          return (
+                            <Td key={v.id} align="right" className={cn(cheapest && "font-semibold text-success")}>
+                              {q ? (
+                                <span className="inline-flex items-center gap-1">
+                                  {cheapest ? <Check className="h-3.5 w-3.5" strokeWidth={3} aria-label="Cheapest" /> : null}
+                                  {money(q.landedPrice)}
+                                </span>
+                              ) : (
+                                <span className="text-border-strong">—</span>
+                              )}
+                            </Td>
+                          );
+                        })}
+                        <Td align="right" className="text-muted">
+                          {spread ? pct(spread.spreadPct, 0) : "—"}
+                        </Td>
+                      </tr>
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </div>
         </>
       )}
 

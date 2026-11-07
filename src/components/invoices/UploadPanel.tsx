@@ -1,10 +1,8 @@
 "use client";
 
-import { Camera, FileUp, Sparkles, Upload } from "lucide-react";
+import { Camera, ChevronDown, FileUp } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Field";
 import { useToast } from "@/components/ui/Toast";
 import type { VendorId } from "@/data/types";
@@ -119,74 +117,59 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
   };
 
   return (
-    <Card>
-      <CardBody className="grid gap-4 py-5 lg:grid-cols-[1fr_320px]">
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          className={cn(
-            "flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors",
-            dragging ? "border-text bg-surface-3" : "border-border-strong bg-surface-2",
-          )}
-        >
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-text shadow-sm ring-1 ring-border">
-            <Upload className="h-6 w-6" />
-          </span>
-          <h3 className="mt-3 text-lg font-semibold tracking-tight text-text">Add a delivery invoice</h3>
-          <p className="mt-1 max-w-sm text-[15px] text-text-2">
-            Take a photo or drop a PDF here, up to four at once. The AI reads every line and matches it to your products for you to check.
-          </p>
-          <div className="mt-5 flex flex-wrap justify-center gap-2">
-            <Button size="lg" icon={<Camera className="h-5 w-5" />} onClick={() => cameraRef.current?.click()}>
-              Take a photo
-            </Button>
-            <Button size="lg" variant="outline" icon={<FileUp className="h-5 w-5" />} onClick={() => fileRef.current?.click()}>
-              Choose files
-            </Button>
-          </div>
-          <div className="mt-4">
-            {extractionEnabled ? (
-              <Badge tone="success" dot>
-                AI reading is on
-              </Badge>
-            ) : (
-              <Badge tone="warning" dot title="Add ANTHROPIC_API_KEY on the server to read real invoices">
-                Practice mode: invoices are simulated
-              </Badge>
-            )}
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*,application/pdf"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files) ingest(e.target.files, "upload");
-              e.target.value = "";
-            }}
-          />
-          <input
-            ref={cameraRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files) ingest(e.target.files, "camera");
-              e.target.value = "";
-            }}
-          />
-        </div>
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={onDrop}
+      className={cn("rounded-2xl transition-colors", dragging && "bg-surface-3 outline-2 outline-offset-8 outline-text outline-dashed")}
+    >
+      <div className="grid grid-cols-2 gap-2.5 md:flex">
+        <Button icon={<Camera className="h-5 w-5" strokeWidth={1.75} />} onClick={() => cameraRef.current?.click()}>
+          Take a photo
+        </Button>
+        <Button variant="outline" icon={<FileUp className="h-5 w-5" strokeWidth={1.75} />} onClick={() => fileRef.current?.click()}>
+          Choose files
+        </Button>
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*,application/pdf"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files) ingest(e.target.files, "upload");
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files) ingest(e.target.files, "camera");
+          e.target.value = "";
+        }}
+      />
+      <p className="mt-3 text-[13px] text-muted">
+        <span className="hidden md:inline">Or drop up to four files here. </span>
+        {extractionEnabled ? "AI reading is on." : "Practice mode: invoices are simulated."}
+      </p>
 
-        <div className="flex flex-col gap-3">
+      <details className="group mt-2">
+        <summary className="flex h-10 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-text-2">
+          More options
+          <ChevronDown className="h-4 w-4 text-muted transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="mt-1 grid gap-4 pb-1 md:grid-cols-2">
           <div>
             <label htmlFor="upload-vendor" className="mb-1.5 block text-sm font-medium text-text-2">
-              Which vendor is it from?
+              Vendor
             </label>
             <Select id="upload-vendor" value={vendorChoice} onChange={(e) => setVendorChoice(e.target.value as VendorId | "auto")}>
               <option value="auto">Figure it out from the invoice</option>
@@ -197,23 +180,18 @@ export function UploadPanel({ onCreated }: { onCreated: (invoice: InvoiceRecord)
               ))}
             </Select>
           </div>
-          <div className="rounded-xl border border-border bg-surface-2 p-4">
-            <div className="mb-2.5 flex items-center gap-1.5 text-sm font-medium text-text-2">
-              <Sparkles className="h-4 w-4 text-muted" /> Practice with a sample invoice
-            </div>
+          <div>
+            <div className="mb-1.5 text-sm font-medium text-text-2">Practice with a sample</div>
             <div className="flex flex-wrap gap-2">
               {state.vendors.map((v) => (
-                <Button key={v.id} variant="outline" size="sm" onClick={() => sample(v.id)}>
+                <Button key={v.id} variant="secondary" size="sm" onClick={() => sample(v.id)}>
                   {v.shortName}
                 </Button>
               ))}
             </div>
-            <p className="mt-2.5 text-[13px] leading-snug text-muted">
-              Each sample copies that vendor&apos;s last real invoice with a few price changes and one new item, so you can practice checking one.
-            </p>
           </div>
         </div>
-      </CardBody>
-    </Card>
+      </details>
+    </div>
   );
 }

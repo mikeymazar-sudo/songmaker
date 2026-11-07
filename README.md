@@ -6,14 +6,16 @@ Data lives in a Supabase Postgres database behind the app's own API routes. The 
 
 ## Screens
 
-| Route | What it does |
-| --- | --- |
-| `/` | Dashboard: 30-day spend by vendor, items below par, this week's routed order, price changes, invoices awaiting review, recent activity |
-| `/order` | Walk-in Count & Order Builder: category chips, +/− steppers for on-hand and par, order qty = par − on hand, winning vendor per item |
-| `/orders` | Vendor Recommendations & Purchase Orders: order split by vendor on landed cost, per-line vendor override, smart vs single-vendor routing, approve/copy/print POs |
-| `/products` | Master Products: searchable price matrix (one column per vendor, cheapest highlighted, spread %), product drawer with vendor SKUs and price history, add/edit/archive |
-| `/invoices` | Upload & Review Invoices: drop files or take a photo, simulated extraction, original-vs-extracted review, match or create products, approve into price history |
-| `/audit` | Audit Log: every count, correction, approval and price change, filterable and exportable as CSV |
+The layout is phone-first: bottom tabs on phones, top tabs from tablet width up. Invoices and History live in the menu.
+
+| Route | Tab | What it does |
+| --- | --- | --- |
+| `/` | Home | This week's order total, what needs attention, order by vendor, price changes, 30-day spend |
+| `/order` | Count | Walk-in count: +/− for on-hand on every item, running total; tap an item for par, order quantity and vendor prices |
+| `/orders` | Order | Order split by vendor on landed cost, per-line vendor override, smart vs single-vendor routing, approve/copy/print POs |
+| `/products` | Items | Searchable item list with best price (price matrix on wide screens), item sheet with vendor SKUs and price history, add/edit/archive |
+| `/invoices` | Menu | Take a photo or upload, simulated or Claude extraction, check against the original, match items, approve into price history |
+| `/audit` | Menu | Every count, correction, approval and price change, filterable and exportable as CSV |
 
 ## Pricing rules
 

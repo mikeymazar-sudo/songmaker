@@ -76,21 +76,20 @@ function ProductFormInner({ open, onClose, product, defaults, onSaved }: Product
     <Modal
       open={open}
       onClose={onClose}
-      title={product ? "Edit product" : "Add a product"}
-      subtitle="One entry per product, no matter how many vendors sell it or what they call it."
+      title={product ? "Edit item" : "Add an item"}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={save} disabled={!valid}>
-            {product ? "Save changes" : "Add product"}
+            {product ? "Save" : "Add item"}
           </Button>
         </>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <FormRow label="Product name" className="sm:col-span-2">
+        <FormRow label="Name" className="sm:col-span-2">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Chicken Breast Boneless" autoFocus />
         </FormRow>
         <FormRow label="Category">

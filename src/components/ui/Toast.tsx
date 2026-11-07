@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CircleAlert, Info, X } from "lucide-react";
+import { X } from "lucide-react";
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/format";
 
@@ -34,33 +34,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6">
-        {items.map((t) => {
-          const Icon = t.tone === "success" ? CheckCircle2 : t.tone === "danger" ? CircleAlert : Info;
-          return (
-            <div
-              key={t.id}
-              className={cn(
-                "pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3 shadow-lg",
-              )}
-              role="status"
-            >
-              <Icon
-                className={cn(
-                  "mt-0.5 h-5 w-5 shrink-0",
-                  t.tone === "success" ? "text-success" : t.tone === "danger" ? "text-danger" : "text-info",
-                )}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-text">{t.title}</div>
-                {t.description ? <div className="mt-0.5 text-xs text-muted">{t.description}</div> : null}
-              </div>
-              <button onClick={() => dismiss(t.id)} aria-label="Dismiss" className="rounded p-1 text-muted hover:bg-surface-3">
-                <X className="h-4 w-4" />
-              </button>
+      <div className="no-print pointer-events-none fixed inset-x-0 top-[calc(var(--topbar-h)+0.5rem)] z-[60] flex flex-col items-center gap-2 px-4">
+        {items.map((t) => (
+          <div
+            key={t.id}
+            className={cn(
+              "sheet-in pointer-events-auto flex w-full max-w-md items-start gap-2 rounded-2xl py-3 pl-4 pr-2 shadow-lg",
+              t.tone === "danger" ? "bg-danger text-white" : "bg-brand text-brand-fg",
+            )}
+            role="status"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-medium">{t.title}</div>
+              {t.description ? <div className="mt-0.5 text-[13px] leading-snug opacity-75">{t.description}</div> : null}
             </div>
-          );
-        })}
+            <button onClick={() => dismiss(t.id)} aria-label="Dismiss" className="-my-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full opacity-70">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
       </div>
     </ToastContext.Provider>
   );

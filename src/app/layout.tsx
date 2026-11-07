@@ -11,20 +11,20 @@ export const metadata: Metadata = {
   title: { default: "SmartPurchasing AI", template: "%s · SmartPurchasing AI" },
   description: "Count your stock, see the cheapest vendor for every item, and turn delivery invoices into up-to-date prices.",
   applicationName: "SmartPurchasing AI",
+  appleWebApp: { capable: true, title: "SmartPurchasing", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f5f1" },
-    { media: "(prefers-color-scheme: dark)", color: "#12110f" },
-  ],
+  interactiveWidget: "resizes-content",
+  themeColor: "#ffffff",
 };
 
+// White unless dark was picked in the menu, whatever the device's own setting is.
 const themeScript =
-  "(function(){try{var t=localStorage.getItem('sp-theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d){document.documentElement.classList.add('dark');}}catch(e){}})();";
+  "(function(){try{if(localStorage.getItem('sp-theme')==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();";
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

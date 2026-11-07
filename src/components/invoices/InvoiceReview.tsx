@@ -1,15 +1,13 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Check, CircleAlert, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ProductFormModal, type ProductFormDefaults } from "@/components/products/ProductForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Field";
-import { Table, TableWrap, Td, Th } from "@/components/ui/Table";
+import { Section } from "@/components/ui/List";
 import { useToast } from "@/components/ui/Toast";
-import { VendorBadge } from "@/components/ui/VendorBadge";
 import { CATEGORIES, type VendorId } from "@/data/types";
 import { cn, fmtDate, fmtNum, money, pct, round2, signedPct } from "@/lib/format";
 import type { ExtractedLine, InvoiceRecord } from "@/lib/models";
@@ -35,39 +33,26 @@ function ProcessingCard({ invoice }: { invoice: InvoiceRecord }) {
   const budget = real ? 20000 : PROCESSING_MS;
   const stepIndex = Math.min(STEPS.length - 1, Math.floor((elapsed / budget) * STEPS.length));
   return (
-    <Card>
-      <CardBody className="flex flex-col items-center gap-4 py-10 text-center">
-        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-soft text-brand dark:text-text">
-          <Sparkles className="h-7 w-7 animate-pulse" />
-        </span>
-        <div>
-          <div className="text-lg font-semibold text-text">Reading your invoice{invoice.fileName ? ` “${invoice.fileName}”` : ""}</div>
-          <div className="text-sm text-muted">
-            {real ? "This can take up to a minute for invoices with several pages." : "This usually takes a few seconds."}
-          </div>
-        </div>
-        <ol className="w-full max-w-sm space-y-2 text-left text-sm">
-          {STEPS.map((s, i) => (
-            <li
-              key={s}
-              className={cn("flex items-center gap-2", i < stepIndex ? "text-success" : i === stepIndex ? "text-text" : "text-muted")}
-            >
-              {i < stepIndex ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <span
-                  className={cn(
-                    "h-4 w-4 rounded-full border-2",
-                    i === stepIndex ? "animate-spin border-brand border-t-transparent" : "border-border-strong",
-                  )}
-                />
-              )}
-              {s}
-            </li>
-          ))}
-        </ol>
-      </CardBody>
-    </Card>
+    <div className="mx-auto max-w-sm py-10">
+      <h1 className="text-[22px] font-semibold tracking-tight text-text">Reading your invoice</h1>
+      <p className="mt-1 text-[15px] text-muted">
+        {real ? "This can take up to a minute for invoices with several pages." : "This usually takes a few seconds."}
+      </p>
+      <ol className="mt-6 space-y-3 text-[15px]">
+        {STEPS.map((s, i) => (
+          <li key={s} className={cn("flex items-center gap-3", i < stepIndex ? "text-success" : i === stepIndex ? "text-text" : "text-muted")}>
+            {i < stepIndex ? (
+              <Check className="h-4 w-4 shrink-0" />
+            ) : (
+              <span
+                className={cn("h-4 w-4 shrink-0 rounded-full border-2", i === stepIndex ? "animate-spin border-text border-t-transparent" : "border-border-strong")}
+              />
+            )}
+            {s}
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
@@ -78,6 +63,7 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
   const invoice = state.invoices.find((i) => i.id === invoiceId);
   const vendor = invoice ? state.vendors.find((v) => v.id === invoice.vendorId) : undefined;
   const [creatingFor, setCreatingFor] = useState<ExtractedLine | null>(null);
+  const [showPaper, setShowPaper] = useState(false);
 
   const summary = useMemo(() => {
     if (!invoice) return null;
@@ -99,11 +85,7 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
   }, [invoice, state.vendorProducts]);
 
   if (!invoice || !summary) {
-    return (
-      <Card>
-        <CardBody className="py-8 text-center text-sm text-muted">That invoice is no longer available.</CardBody>
-      </Card>
-    );
+    return <p className="py-10 text-center text-[15px] text-muted">That invoice is no longer available.</p>;
   }
   if (invoice.status === "processing") return <ProcessingCard invoice={invoice} />;
 
@@ -187,177 +169,152 @@ export function InvoiceReview({ invoiceId, onBack }: { invoiceId: string; onBack
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Button variant="ghost" icon={<ArrowLeft className="h-4 w-4" />} onClick={onBack}>
-          All invoices
-        </Button>
-        <div className="flex flex-wrap items-center gap-2">
-          {vendor ? <VendorBadge vendor={vendor} tone="solid" /> : null}
-          <span className="text-sm font-semibold text-text">Invoice #{invoice.invoiceNumber}</span>
-          <StatusBadge status={invoice.status} />
-          {invoice.confidence !== undefined ? (
-            <Badge tone={invoice.confidence >= 0.9 ? "success" : "warning"} title="How sure the AI is that it read the invoice correctly">
-              AI read it {pct(invoice.confidence, 0)} sure
-            </Badge>
-          ) : null}
+      <button type="button" onClick={onBack} className="-ml-1 mb-3 flex h-10 items-center gap-1.5 text-[15px] font-medium text-text-2">
+        <ArrowLeft className="h-4 w-4" />
+        Invoices
+      </button>
+
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="truncate text-[28px] font-semibold leading-tight tracking-tight text-text md:text-[32px]">{vendor?.shortName ?? invoice.vendorId}</h1>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 text-[15px] text-muted">
+            <span>#{invoice.invoiceNumber}</span>
+            <StatusBadge status={invoice.status} />
+            {invoice.confidence !== undefined ? (
+              <Badge tone={invoice.confidence >= 0.9 ? "neutral" : "warning"} title="How sure the AI is that it read the invoice correctly">
+                {pct(invoice.confidence, 0)} sure
+              </Badge>
+            ) : null}
+          </div>
         </div>
+        <div className="tabular shrink-0 text-right text-[22px] font-semibold tracking-tight text-text md:text-[28px]">{money(invoice.total)}</div>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 2xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <div className="min-w-0 max-h-[46vh] overflow-y-auto rounded-xl 2xl:sticky 2xl:top-20 2xl:max-h-none 2xl:self-start 2xl:overflow-visible">
-          <InvoicePaper invoice={invoice} vendor={vendor} />
+      <div className="lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start lg:gap-10">
+        <div className="lg:sticky lg:top-24">
+          <button
+            type="button"
+            onClick={() => setShowPaper((v) => !v)}
+            aria-expanded={showPaper}
+            className="flex h-11 w-full items-center justify-between border-y border-border text-[15px] font-medium text-text lg:hidden"
+          >
+            {showPaper ? "Hide the original" : "See the original"}
+            <ChevronDown className={cn("h-4 w-4 text-muted transition-transform", showPaper && "rotate-180")} />
+          </button>
+          <div className={cn("mt-3 lg:mt-0 lg:block", showPaper ? "block" : "hidden")}>
+            <InvoicePaper invoice={invoice} vendor={vendor} />
+          </div>
         </div>
 
-        <div className="min-w-0 space-y-4">
-          <Card>
-            <CardHeader title="Invoice details" subtitle={invoice.notes} />
-            <CardBody className="grid gap-3 sm:grid-cols-4">
-              <Field label="Vendor">
-                {editable ? (
-                  <Select
-                    value={invoice.vendorId}
-                    onChange={(e) =>
-                      actions.updateInvoice(
-                        invoice.id,
-                        { vendorId: e.target.value as VendorId },
-                        `Invoice ${invoice.invoiceNumber} reassigned to ${state.vendors.find((v) => v.id === e.target.value)?.name ?? e.target.value}`,
-                      )
-                    }
-                    aria-label="Vendor"
-                  >
-                    {state.vendors.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </Select>
-                ) : (
-                  <div className="flex h-11 items-center text-sm font-medium text-text">{vendor?.name}</div>
-                )}
-              </Field>
-              <Field label="Invoice #">
-                <Input
-                  value={invoice.invoiceNumber}
-                  disabled={!editable}
-                  onChange={(e) => actions.updateInvoice(invoice.id, { invoiceNumber: e.target.value })}
-                />
-              </Field>
-              <Field label="Date">
-                <Input
-                  type="date"
-                  value={invoice.date}
-                  disabled={!editable}
-                  onChange={(e) => actions.updateInvoice(invoice.id, { date: e.target.value })}
-                />
-              </Field>
-              <Field label="Pages">
-                <div className="flex h-11 items-center text-sm text-text">{invoice.pages}</div>
-              </Field>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader
-              title={`Items on this invoice (${summary.merch.length})`}
-              subtitle="Compare with the original. Fix anything the AI got wrong and match any new items to a product, then approve."
-            />
-            <CardBody className="px-0 pb-0">
-              <TableWrap className="rounded-none border-x-0 border-b-0">
-                <Table className="min-w-0!">
-                  <thead>
-                    <tr>
-                      <Th>As printed</Th>
-                      <Th align="right">Qty</Th>
-                      <Th align="right">Price each</Th>
-                      <Th align="right">Total</Th>
-                      <Th>Your product</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoice.lines.map((line) => (
-                      <LineRow
-                        key={line.lineId}
-                        line={line}
-                        invoice={invoice}
-                        editable={editable}
-                        productOptions={productOptions}
-                        onMatch={(pid) => setMatch(line, pid)}
-                      />
-                    ))}
-                  </tbody>
-                </Table>
-              </TableWrap>
-              <div className="grid gap-x-8 gap-y-1 px-5 py-4 text-sm sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Row label="Items" value={money(invoice.subtotal)} />
-                  {invoice.fees > 0 ? <Row label="Delivery & fuel fees" value={money(invoice.fees)} /> : null}
-                  {invoice.tax > 0 ? <Row label="Sales tax" value={money(invoice.tax)} /> : null}
-                </div>
-                <div className="flex flex-col justify-end sm:items-end">
-                  <div className="text-sm text-muted">Invoice total</div>
-                  <div className="tabular text-2xl font-semibold text-text">{money(invoice.total)}</div>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card className={cn(editable && (canApprove ? "border-success/40" : "border-warning/40"))}>
-            <CardBody className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
-              <div className="text-sm">
-                {editable ? (
-                  <>
-                    <div className="font-semibold text-text">When you approve, we&apos;ll</div>
-                    <ul className="mt-1 list-disc space-y-0.5 pl-5 text-text-2">
-                      <li>
-                        save {summary.merch.length} purchases from {fmtDate(invoice.date)} to your price history
-                      </li>
-                      <li>
-                        update {vendor?.shortName} prices: {summary.ups} went up, {summary.downs} went down, {summary.newSkus} new item
-                        {summary.newSkus === 1 ? "" : "s"} for this vendor
-                      </li>
-                      {summary.lowConf.length > 0 ? (
-                        <li className="text-warning">
-                          {summary.lowConf.length} line{summary.lowConf.length === 1 ? "" : "s"} the AI wasn&apos;t sure about: double-check
-                          against the paper
-                        </li>
-                      ) : null}
-                      {summary.unmatched.length > 0 ? (
-                        <li className="text-danger">
-                          match {summary.unmatched.length} new item{summary.unmatched.length === 1 ? "" : "s"} to a product first
-                        </li>
-                      ) : null}
-                      {badPrices.length > 0 ? (
-                        <li className="text-danger">
-                          {badPrices.length} line{badPrices.length === 1 ? " is" : "s are"} missing a price; add{" "}
-                          {badPrices.length === 1 ? "it" : "them"} first
-                        </li>
-                      ) : null}
-                    </ul>
-                  </>
-                ) : invoice.status === "approved" ? (
-                  <div className="text-text-2">
-                    Approved {invoice.approvedAt ? fmtDate(invoice.approvedAt) : ""}. Its prices are now in Products &amp; prices.
-                  </div>
-                ) : (
-                  <div className="text-text-2">
-                    Rejected{invoice.rejectReason ? `: ${invoice.rejectReason}` : ""}. Nothing from this invoice was saved.
-                  </div>
-                )}
-              </div>
+        <div className="min-w-0">
+          <div className="mt-5 grid grid-cols-2 gap-3 lg:mt-0">
+            <Field label="Vendor" className="col-span-2 md:col-span-1">
               {editable ? (
-                <div className="flex shrink-0 gap-2">
-                  <Button variant="outline" icon={<X className="h-4 w-4" />} onClick={reject}>
-                    Reject
-                  </Button>
-                  <Button variant="success" size="lg" icon={<Check className="h-5 w-5" />} onClick={approve} disabled={!canApprove}>
-                    Approve invoice
-                  </Button>
-                </div>
+                <Select
+                  value={invoice.vendorId}
+                  onChange={(e) =>
+                    actions.updateInvoice(
+                      invoice.id,
+                      { vendorId: e.target.value as VendorId },
+                      `Invoice ${invoice.invoiceNumber} reassigned to ${state.vendors.find((v) => v.id === e.target.value)?.name ?? e.target.value}`,
+                    )
+                  }
+                  aria-label="Vendor"
+                >
+                  {state.vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <div className="flex h-12 items-center text-[15px] font-medium text-text">{vendor?.name}</div>
+              )}
+            </Field>
+            <Field label="Invoice #">
+              <Input value={invoice.invoiceNumber} disabled={!editable} onChange={(e) => actions.updateInvoice(invoice.id, { invoiceNumber: e.target.value })} />
+            </Field>
+            <Field label="Date">
+              <Input type="date" value={invoice.date} disabled={!editable} onChange={(e) => actions.updateInvoice(invoice.id, { date: e.target.value })} />
+            </Field>
+          </div>
+          {invoice.notes ? <p className="mt-3 text-[13px] text-muted">{invoice.notes}</p> : null}
+
+          <Section title={`Items (${summary.merch.length})`} className="mt-8">
+            <ul className="divide-y divide-border">
+              {invoice.lines.map((line) => (
+                <LineRow key={line.lineId} line={line} invoice={invoice} editable={editable} productOptions={productOptions} onMatch={(pid) => setMatch(line, pid)} />
+              ))}
+            </ul>
+            <dl className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-1 border-t border-border pt-3 text-sm">
+              <dt className="text-muted">Items</dt>
+              <dd className="tabular text-right text-text">{money(invoice.subtotal)}</dd>
+              {invoice.fees > 0 ? (
+                <>
+                  <dt className="text-muted">Delivery and fuel fees</dt>
+                  <dd className="tabular text-right text-text">{money(invoice.fees)}</dd>
+                </>
               ) : null}
-            </CardBody>
-          </Card>
+              {invoice.tax > 0 ? (
+                <>
+                  <dt className="text-muted">Sales tax</dt>
+                  <dd className="tabular text-right text-text">{money(invoice.tax)}</dd>
+                </>
+              ) : null}
+              <dt className="font-medium text-text">Total</dt>
+              <dd className="tabular text-right font-semibold text-text">{money(invoice.total)}</dd>
+            </dl>
+          </Section>
+
+          <div className="mt-8 text-[15px] leading-relaxed text-text-2">
+            {editable ? (
+              <>
+                <p className="font-medium text-text">When you approve</p>
+                <ul className="mt-1 space-y-0.5">
+                  <li>
+                    {summary.merch.length} purchases go into price history. {vendor?.shortName}: {summary.ups} up, {summary.downs} down, {summary.newSkus} new.
+                  </li>
+                  {summary.lowConf.length > 0 ? (
+                    <li className="text-warning">
+                      Double-check {summary.lowConf.length} line{summary.lowConf.length === 1 ? "" : "s"} the AI wasn&apos;t sure about.
+                    </li>
+                  ) : null}
+                  {summary.unmatched.length > 0 ? (
+                    <li className="text-danger">
+                      Match {summary.unmatched.length} new item{summary.unmatched.length === 1 ? "" : "s"} to a product first.
+                    </li>
+                  ) : null}
+                  {badPrices.length > 0 ? (
+                    <li className="text-danger">
+                      Add the missing price on {badPrices.length} line{badPrices.length === 1 ? "" : "s"} first.
+                    </li>
+                  ) : null}
+                </ul>
+              </>
+            ) : invoice.status === "approved" ? (
+              <p>Approved {invoice.approvedAt ? fmtDate(invoice.approvedAt) : ""}. Its prices are in Items.</p>
+            ) : (
+              <p>Rejected{invoice.rejectReason ? `: ${invoice.rejectReason}` : ""}. Nothing from this invoice was saved.</p>
+            )}
+          </div>
         </div>
       </div>
+
+      {editable ? (
+        <>
+          <div className="no-print fixed inset-x-0 bottom-[var(--tabbar-h)] z-10 border-t border-border bg-bg">
+            <div className="mx-auto flex h-16 w-full max-w-5xl items-center gap-2.5 px-4 md:px-8 md:justify-end">
+              <Button variant="outline" onClick={reject} className="flex-1 md:flex-none">
+                Reject
+              </Button>
+              <Button variant="success" icon={<Check className="h-4 w-4" />} onClick={approve} disabled={!canApprove} className="flex-[2] md:flex-none">
+                Approve
+              </Button>
+            </div>
+          </div>
+          <div className="h-16" aria-hidden />
+        </>
+      ) : null}
 
       <ProductFormModal
         open={!!creatingFor}
@@ -392,20 +349,11 @@ function titleCase(s: string): string {
     .join(" ");
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
-    <div>
-      <div className="mb-1.5 text-sm font-medium text-text-2">{label}</div>
+    <div className={className}>
+      <div className="mb-1.5 text-[13px] font-medium text-muted">{label}</div>
       {children}
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-muted">{label}</span>
-      <span className="tabular font-medium text-text">{value}</span>
     </div>
   );
 }
@@ -413,17 +361,9 @@ function Row({ label, value }: { label: string; value: string }) {
 export function StatusBadge({ status }: { status: InvoiceRecord["status"] }) {
   switch (status) {
     case "processing":
-      return (
-        <Badge tone="info" dot>
-          Reading…
-        </Badge>
-      );
+      return <Badge>Reading…</Badge>;
     case "needs-review":
-      return (
-        <Badge tone="warning" dot>
-          Needs checking
-        </Badge>
-      );
+      return <Badge tone="warning">Needs checking</Badge>;
     case "approved":
       return <Badge tone="success">Approved</Badge>;
     case "rejected":
@@ -453,122 +393,108 @@ function LineRow({
 
   if (line.isFee) {
     return (
-      <tr className="bg-surface-2/60 text-muted">
-        <Td className="whitespace-normal">
-          <div className="text-sm">{line.description}</div>
+      <li className="flex items-start justify-between gap-4 py-3 text-[15px] text-muted">
+        <div className="min-w-0">
+          <div>{line.description}</div>
           {line.flags.map((f) => (
-            <div key={f} className="text-xs text-warning">
+            <div key={f} className="text-[13px] text-warning">
               {f}
             </div>
           ))}
-        </Td>
-        <Td align="right">—</Td>
-        <Td align="right">—</Td>
-        <Td align="right">{money(line.total)}</Td>
-        <Td>
-          <span className="text-[13px]">Fee</span>
-        </Td>
-      </tr>
+        </div>
+        <span className="tabular shrink-0">{money(line.total)}</span>
+      </li>
     );
   }
 
   return (
-    <tr className={cn(unmatched ? "bg-danger-soft/40" : low ? "bg-warning-soft/40" : undefined)}>
-      <Td className="min-w-48 whitespace-normal">
-        <div className="text-sm font-medium text-text">{line.description}</div>
-        <div className="text-xs text-muted">
-          <span className="font-mono">{line.sku}</span> · {line.packSize}
+    <li className="py-3.5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[15px] font-medium leading-snug text-text">{line.description}</div>
+          <div className="mt-0.5 text-[13px] text-muted">
+            {line.sku} · {line.packSize}
+          </div>
         </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <Badge tone={low ? "warning" : "neutral"} title="How sure the AI is about this line">
-            {pct(line.confidence, 0)} sure
+        <div className="tabular shrink-0 text-[15px] font-medium text-text">{money(line.total)}</div>
+      </div>
+
+      <div className="mt-1 flex flex-wrap items-center gap-x-3">
+        <Badge tone={low ? "warning" : "neutral"} title="How sure the AI is about this line">
+          {pct(line.confidence, 0)} sure
+        </Badge>
+        {line.previousPrice !== undefined && Math.abs(delta) > 0.005 ? (
+          <Badge tone={delta > 0 ? "danger" : "success"} title={`Was ${money(line.previousPrice)}`}>
+            {signedPct(delta)}
           </Badge>
-          {line.previousPrice !== undefined && Math.abs(delta) > 0.005 ? (
-            <Badge tone={delta > 0 ? "danger" : "success"} title={`Was ${money(line.previousPrice)}`}>
-              {signedPct(delta)}
-            </Badge>
-          ) : null}
-          {unmatched ? (
-            <span className="inline-flex items-center gap-1 text-xs text-danger">
-              <CircleAlert className="h-3.5 w-3.5" /> New item
-            </span>
-          ) : null}
-          {low ? (
-            <span className="inline-flex items-center gap-1 text-xs text-warning">
-              <AlertTriangle className="h-3.5 w-3.5" /> Check qty
-            </span>
-          ) : null}
-        </div>
-      </Td>
-      <Td align="right">
-        {editable ? (
-          <Input
-            type="number"
-            inputMode="decimal"
-            value={line.qty}
-            onChange={(e) => actions.updateInvoiceLine(invoice.id, line.lineId, { qty: Math.max(0, Number(e.target.value) || 0) })}
-            className={cn("h-9! w-16! px-2! text-right", low && "border-warning")}
-            aria-label="Quantity"
-          />
-        ) : (
-          fmtNum(line.qty)
-        )}
-      </Td>
-      <Td align="right">
-        {editable ? (
-          <Input
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            value={line.unitPrice}
-            onChange={(e) => {
-              const unitPrice = Math.max(0, Number(e.target.value) || 0);
-              const factor =
-                line.normalizationFactor ??
-                (line.unitPrice > 0 && line.normalizedUnitPrice ? line.normalizedUnitPrice / line.unitPrice : 1);
-              actions.updateInvoiceLine(invoice.id, line.lineId, {
-                unitPrice,
-                normalizationFactor: factor,
-                normalizedUnitPrice: line.productId ? round2(unitPrice * factor) : undefined,
-              });
-            }}
-            className="h-9! w-20! px-2! text-right"
-            aria-label="Unit price"
-          />
-        ) : (
-          money(line.unitPrice)
-        )}
-      </Td>
-      <Td align="right" className="font-medium">
-        {money(line.total)}
-      </Td>
-      <Td className="min-w-48">
-        {editable ? (
-          <Select
-            value={line.productId ?? ""}
-            onChange={(e) => onMatch(e.target.value)}
-            className={cn("h-9! text-sm", unmatched && "border-danger")}
-            aria-label="Your product"
-          >
-            <option value="">Pick a product…</option>
-            <option value="__new__">＋ Add as a new product…</option>
-            {productOptions.map((g) => (
-              <optgroup key={g.category} label={g.category}>
-                {g.products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </Select>
-        ) : (
-          <span className="text-sm text-text">{product?.name ?? <span className="text-muted">No product</span>}</span>
-        )}
-        {product && line.matchStatus === "suggested" ? (
-          <div className="mt-0.5 text-[12px] text-warning">Our best guess, please confirm</div>
         ) : null}
-      </Td>
-    </tr>
+        {unmatched ? <Badge tone="danger">New item</Badge> : null}
+        {low ? <Badge tone="warning">Check qty</Badge> : null}
+      </div>
+
+      {editable ? (
+        <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-[5.5rem_7rem_minmax(0,1fr)]">
+          <div>
+            <div className="mb-1 text-[13px] text-muted">Qty</div>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={line.qty}
+              onChange={(e) => actions.updateInvoiceLine(invoice.id, line.lineId, { qty: Math.max(0, Number(e.target.value) || 0) })}
+              className={cn("tabular h-11", low && "border-warning")}
+              aria-label={`Quantity of ${line.description}`}
+            />
+          </div>
+          <div>
+            <div className="mb-1 text-[13px] text-muted">Price each</div>
+            <Input
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              value={line.unitPrice}
+              onChange={(e) => {
+                const unitPrice = Math.max(0, Number(e.target.value) || 0);
+                const factor =
+                  line.normalizationFactor ??
+                  (line.unitPrice > 0 && line.normalizedUnitPrice ? line.normalizedUnitPrice / line.unitPrice : 1);
+                actions.updateInvoiceLine(invoice.id, line.lineId, {
+                  unitPrice,
+                  normalizationFactor: factor,
+                  normalizedUnitPrice: line.productId ? round2(unitPrice * factor) : undefined,
+                });
+              }}
+              className="tabular h-11"
+              aria-label={`Price of ${line.description}`}
+            />
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <div className="mb-1 text-[13px] text-muted">Your item</div>
+            <Select
+              value={line.productId ?? ""}
+              onChange={(e) => onMatch(e.target.value)}
+              className={cn("h-11 text-sm", unmatched && "border-danger")}
+              aria-label={`Your item for ${line.description}`}
+            >
+              <option value="">Pick an item…</option>
+              <option value="__new__">＋ Add as a new item…</option>
+              {productOptions.map((g) => (
+                <optgroup key={g.category} label={g.category}>
+                  {g.products.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </Select>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-1 text-[13px] text-muted">
+          {fmtNum(line.qty)} × {money(line.unitPrice)} · {product?.name ?? "No item"}
+        </div>
+      )}
+      {product && line.matchStatus === "suggested" ? <div className="mt-1 text-[13px] text-warning">Our best guess, please confirm</div> : null}
+    </li>
   );
 }

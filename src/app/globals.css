@@ -3,56 +3,61 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* Warm, calm light theme: ink for actions, color only where it means something. */
-  --bg: #f6f5f1;
+  /* Bright white: ink for almost everything, green only where money is saved. */
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #faf9f6;
-  --surface-3: #f0eee9;
-  --border: #e7e4dd;
-  --border-strong: #d4d0c7;
-  --text: #1c1917;
-  --text-2: #44403c;
-  --muted: #78716c;
-  --brand: #1c1917;
-  --brand-hover: #2e2a26;
-  --brand-soft: #efece6;
+  --surface-2: #fafafa;
+  --surface-3: #f4f4f4;
+  --border: #ebebeb;
+  --border-strong: #d4d4d4;
+  --text: #0a0a0a;
+  --text-2: #404040;
+  --muted: #737373;
+  --brand: #0a0a0a;
+  --brand-hover: #262626;
+  --brand-soft: #f4f4f4;
   --brand-fg: #ffffff;
-  --accent: #1d4ed8;
-  --success: #15803d;
-  --success-soft: #e6f4ea;
-  --warning: #b45309;
-  --warning-soft: #fdf2df;
-  --danger: #b91c1c;
-  --danger-soft: #fdecec;
-  --info: #1d4ed8;
-  --info-soft: #e8eefc;
-  --ring: #2563eb;
+  --success: #0b7a4b;
+  --success-soft: #eaf6f0;
+  --warning: #a85a00;
+  --warning-soft: #fdf3e4;
+  --danger: #c81e1e;
+  --danger-soft: #fdeded;
+  --ring: #0a0a0a;
+
+  /* Fixed bars, so sticky content and page padding always clear them. */
+  --topbar-h: calc(3.5rem + env(safe-area-inset-top));
+  --tabbar-h: calc(3.5rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --topbar-h: 4rem;
+    --tabbar-h: 0px;
+  }
 }
 
 .dark {
-  --bg: #12110f;
-  --surface: #1c1a17;
-  --surface-2: #211f1b;
-  --surface-3: #2a2723;
-  --border: #34302b;
-  --border-strong: #4a453e;
-  --text: #f5f3ef;
-  --text-2: #d6d2ca;
-  --muted: #a19a90;
-  --brand: #f5f3ef;
-  --brand-hover: #ffffff;
-  --brand-soft: #2e2a25;
-  --brand-fg: #12110f;
-  --accent: #8fb0f8;
+  --bg: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-2: #141414;
+  --surface-3: #1c1c1c;
+  --border: #262626;
+  --border-strong: #404040;
+  --text: #fafafa;
+  --text-2: #d4d4d4;
+  --muted: #a3a3a3;
+  --brand: #fafafa;
+  --brand-hover: #e5e5e5;
+  --brand-soft: #1c1c1c;
+  --brand-fg: #0a0a0a;
   --success: #4ade80;
-  --success-soft: #12291b;
+  --success-soft: #10291c;
   --warning: #fbbf24;
   --warning-soft: #33260b;
   --danger: #f87171;
   --danger-soft: #3a1515;
-  --info: #93c5fd;
-  --info-soft: #172338;
-  --ring: #60a5fa;
+  --ring: #fafafa;
 }
 
 @theme inline {
@@ -69,23 +74,21 @@
   --color-brand-hover: var(--brand-hover);
   --color-brand-soft: var(--brand-soft);
   --color-brand-fg: var(--brand-fg);
-  --color-accent: var(--accent);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
-  --color-info: var(--info);
-  --color-info-soft: var(--info-soft);
   --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --radius-card: 16px;
 }
 
 html {
   color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 html.dark {
   color-scheme: dark;
@@ -95,12 +98,35 @@ body {
   color: var(--text);
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
+  /* Keeps content clear of the notch on a phone held sideways. */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 *,
 ::before,
 ::after {
   border-color: var(--border);
 }
+
+/* No double-tap zoom on the things people tap all day. */
+a,
+button,
+input,
+select,
+label,
+summary {
+  touch-action: manipulation;
+}
+
+/* iOS zooms the page when a focused field's text is under 16px. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 .tabular {
   font-variant-numeric: tabular-nums;
 }
@@ -119,6 +145,25 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+summary::-webkit-details-marker {
+  display: none;
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
+.sheet-in {
+  animation: sheet-in 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-in {
+    animation: none;
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;

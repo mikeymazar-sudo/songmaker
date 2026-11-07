@@ -530,6 +530,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const reload = useCallback(async () => {
+    const seen = latest.current;
     try {
       const res = await fetch("/api/state", { cache: "no-store" });
       if (res.status === 401) {
@@ -543,6 +544,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       const body = (await res.json()) as { state: AppState; extraction: boolean };
+      // A tap landed while this was loading. Applying the older copy would erase it before it syncs.
+      if (latest.current !== seen) return;
       lastSynced.current = body.state;
       dispatch({ type: "HYDRATE", state: body.state });
       setExtractionEnabled(Boolean(body.extraction));
