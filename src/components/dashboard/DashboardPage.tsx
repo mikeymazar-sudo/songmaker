@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { TakeInvoicePhoto } from "@/components/invoices/TakeInvoicePhoto";
 import { buttonStyles } from "@/components/ui/Button";
 import { Hero } from "@/components/ui/Hero";
 import { List, Row, Section } from "@/components/ui/List";
@@ -69,14 +70,15 @@ export function DashboardPage() {
           <Link href="/orders" className={buttonStyles("outline", "md", "w-full")}>
             Review order
           </Link>
+          <TakeInvoicePhoto className="col-span-2 w-full" />
         </div>
 
         <List className="mt-6 border-y border-border">
           <li>
             <Row
               href="/invoices"
-              title={data.pending.length > 0 ? `${data.pending.length} invoice${data.pending.length === 1 ? "" : "s"} to check` : "Add a delivery invoice"}
-              subtitle={data.pending.length > 0 ? "Waiting for your OK" : "Snap a photo and prices update themselves"}
+              title={data.pending.length > 0 ? `${data.pending.length} invoice${data.pending.length === 1 ? "" : "s"} to check` : "All invoices"}
+              subtitle={data.pending.length > 0 ? "Waiting for your OK" : "Upload a file or find an old one"}
             />
           </li>
           {routing.missingQuotes.length > 0 ? (
@@ -163,6 +165,9 @@ export function DashboardPage() {
               ))}
             </List>
           )}
+          <Link href="/graphs" className={buttonStyles("outline", "md", "mt-4 w-full")}>
+            See graphs
+          </Link>
         </Section>
       </div>
     </div>

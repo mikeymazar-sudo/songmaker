@@ -10,11 +10,12 @@ The layout is phone-first: bottom tabs on phones, top tabs from tablet width up.
 
 | Route | Tab | What it does |
 | --- | --- | --- |
-| `/` | Home | This week's order total, what needs attention, order by vendor, price changes, 30-day spend |
+| `/` | Home | This week's order total, take an invoice photo, what needs attention, order by vendor, price changes, 30-day spend |
 | `/order` | Count | Walk-in count: +/− for on-hand on every item, running total; tap an item for par, order quantity and vendor prices |
-| `/orders` | Order | Order split by vendor on landed cost, per-line vendor override, smart vs single-vendor routing, approve/copy/print POs |
-| `/products` | Items | Searchable item list with best price (price matrix on wide screens), item sheet with vendor SKUs and price history, add/edit/archive |
+| `/orders` | Order | Order split by vendor on landed cost, per-line vendor override, smart vs single-vendor routing, approve POs, then text, email, copy or print them |
+| `/products` | Items | Searchable item list with best price and every other vendor's price (price matrix on wide screens), item sheet with vendor SKUs and price history, add/edit/archive |
 | `/invoices` | Menu | Take a photo or upload, simulated or Claude extraction, check against the original, match items, approve into price history |
+| `/graphs` | Menu | Weekly spending by vendor and an item's price over time. A phone held sideways gets a full-screen graph |
 | `/audit` | Menu | Every count, correction, approval and price change, filterable and exportable as CSV |
 
 ## Pricing rules
@@ -22,7 +23,7 @@ The layout is phone-first: bottom tabs on phones, top tabs from tablet width up.
 - Vendor prices are normalized to each product's base unit (case, lb, gal, each, bag, bottle, bucket).
 - **Landed price** = price × (1 + percent fees for that vendor and category). Flat fees (fuel surcharges, delivery fees) are added once per vendor cart. Sales tax is estimated on the vendor's taxable categories.
 - The winning vendor is the lowest landed price; the product's preferred vendor wins ties. Any line can be overridden.
-- Nothing is ever sent to a vendor automatically: approving a PO records it and gives you text to paste into the vendor portal.
+- Nothing is ever sent to a vendor automatically: approving a PO records it, and Text or Email opens the phone's own app with the order filled in so the owner picks the contact and presses send.
 
 ## Setup
 

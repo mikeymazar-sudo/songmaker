@@ -1,10 +1,10 @@
 "use client";
 
-import { ChevronDown, Copy, Printer, Send } from "lucide-react";
+import { ChevronDown, Copy, Mail, MessageSquare, Printer, Send } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
-import { Button, buttonStyles } from "@/components/ui/Button";
+import { Button, buttonStyles, type ButtonSize } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Select } from "@/components/ui/Field";
 import { Hero } from "@/components/ui/Hero";
@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/Toast";
 import type { VendorId } from "@/data/types";
 import { cn, fmtDate, fmtDateTime, fmtNum, money, moneyWhole, round2, unitLabel } from "@/lib/format";
 import type { PurchaseOrder, RoutedLine, VendorCart } from "@/lib/models";
-import { bestQuote, buildOrderText, routeOrder } from "@/lib/pricing";
+import { bestQuote, buildOrderMessage, buildOrderText, emailHref, routeOrder, smsHref, BUSINESS_NAME } from "@/lib/pricing";
 import { useActions, useApp } from "@/lib/store";
 
 export function VendorOrdersPage() {
@@ -29,7 +29,7 @@ export function VendorOrdersPage() {
     actions.approvePO("all");
     toast({
       title: `${routing.carts.length} orders approved`,
-      description: "Nothing was sent. Copy each order to the vendor when you're ready.",
+      description: "Nothing was sent. Text, email or copy each order when you're ready.",
     });
   };
 
@@ -121,15 +121,37 @@ export function VendorOrdersPage() {
   );
 }
 
+/** Opens the phone's own messages or mail app with the order filled in. Nothing goes out until the owner presses send. */
+function TextEmailButtons({ vendorName, message, size = "md" }: { vendorName: string; message: string; size?: ButtonSize }) {
+  return (
+    <>
+      <a href={smsHref(message)} className={buttonStyles("outline", size)}>
+        <MessageSquare className="h-4 w-4" />
+        Text
+      </a>
+      <a href={emailHref(`${BUSINESS_NAME} order for ${vendorName}`, message)} className={buttonStyles("outline", size)}>
+        <Mail className="h-4 w-4" />
+        Email
+      </a>
+    </>
+  );
+}
+
 function VendorCartRow({ cart }: { cart: VendorCart }) {
   const { state } = useApp();
   const actions = useActions();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const feeLabel = cart.vendor.fees.map((f) => f.label).join(" + ") || "Fees";
+  const dateLabel = fmtDate(new Date().toISOString().slice(0, 10));
+  const message = buildOrderMessage(
+    cart.vendor.name,
+    dateLabel,
+    cart.lines.map((l) => ({ qty: l.qty, unit: l.product.baseUnit, name: l.product.name, sku: l.quote.sku, packSize: l.quote.packSize })),
+  );
 
   const copy = async () => {
-    const text = buildOrderText(cart, state.restaurantName, fmtDate(new Date().toISOString().slice(0, 10)));
+    const text = buildOrderText(cart, state.restaurantName, dateLabel);
     try {
       await navigator.clipboard.writeText(text);
       toast({ title: `${cart.vendor.shortName} order copied`, description: "Paste it into their website or a text to your rep." });
@@ -189,6 +211,7 @@ function VendorCartRow({ cart }: { cart: VendorCart }) {
             <dd className="tabular text-right font-semibold text-text">{money(cart.total)}</dd>
           </dl>
           <div className="mt-4 grid grid-cols-2 gap-2.5 md:flex md:justify-end">
+            <TextEmailButtons vendorName={cart.vendor.name} message={message} />
             <Button variant="outline" icon={<Copy className="h-4 w-4" />} onClick={copy}>
               Copy
             </Button>
@@ -197,7 +220,7 @@ function VendorCartRow({ cart }: { cart: VendorCart }) {
                 actions.approvePO([cart.vendor.id]);
                 toast({
                   title: `${cart.vendor.shortName} order approved`,
-                  description: `${money(cart.total)}, ${cart.lines.length} items. Not sent yet; copy it to ${cart.vendor.shortName} when you're ready.`,
+                  description: `${money(cart.total)}, ${cart.lines.length} items. Not sent yet. Text, email or copy it to ${cart.vendor.shortName} when you're ready.`,
                 });
               }}
             >
@@ -309,6 +332,11 @@ function ApprovedOrders({ orders }: { orders: PurchaseOrder[] }) {
                     ))}
                   </ul>
                   <div className="no-print mt-3 flex flex-wrap gap-2 md:justify-end">
+                    <TextEmailButtons
+                      vendorName={vendor?.name ?? po.vendorId}
+                      message={buildOrderMessage(vendor?.name ?? po.vendorId, fmtDate(po.createdAt), po.lines)}
+                      size="sm"
+                    />
                     <Button
                       variant="outline"
                       size="sm"

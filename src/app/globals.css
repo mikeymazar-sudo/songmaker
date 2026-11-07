@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+@custom-variant phone-landscape (@media (orientation: landscape) and (max-height: 500px));
 
 :root {
   /* Bright white: ink for almost everything, green only where money is saved. */
@@ -24,6 +25,13 @@
   --danger: #c81e1e;
   --danger-soft: #fdeded;
   --ring: #0a0a0a;
+
+  /* Graph colors, one per vendor so a vendor keeps its color on every graph. Checked for colorblind separation. */
+  --series-cheney: #2a78d6;
+  --series-sysco: #eb6834;
+  --series-usfoods: #1baf7a;
+  --series-trs: #eda100;
+  --series-boomers: #e87ba4;
 
   /* Fixed bars, so sticky content and page padding always clear them. */
   --topbar-h: calc(3.5rem + env(safe-area-inset-top));
@@ -58,6 +66,12 @@
   --danger: #f87171;
   --danger-soft: #3a1515;
   --ring: #fafafa;
+
+  --series-cheney: #3987e5;
+  --series-sysco: #d95926;
+  --series-usfoods: #199e70;
+  --series-trs: #c98500;
+  --series-boomers: #d55181;
 }
 
 @theme inline {

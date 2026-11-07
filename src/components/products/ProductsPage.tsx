@@ -22,6 +22,7 @@ export function ProductsPage() {
   const [query, setQuery] = useState(ui.productQuery);
   const [category, setCategory] = useState<CategoryFilter>("All");
   const [showArchived, setShowArchived] = useState(false);
+  const [allVendors, setAllVendors] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(ui.selectedProductId);
   const [adding, setAdding] = useState(false);
   const [seenNonce, setSeenNonce] = useState(ui.nonce);
@@ -97,21 +98,28 @@ export function ProductsPage() {
         <span>
           {rows.length} item{rows.length === 1 ? "" : "s"}
         </span>
-        <label className="flex h-9 cursor-pointer items-center gap-2">
-          <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="h-4 w-4 accent-[var(--brand)]" />
-          Show archived
-        </label>
+        <div className="flex items-center gap-4">
+          <label className="flex h-9 cursor-pointer items-center gap-2 lg:hidden">
+            <input type="checkbox" checked={allVendors} onChange={(e) => setAllVendors(e.target.checked)} className="h-4 w-4 accent-[var(--brand)]" />
+            All vendors
+          </label>
+          <label className="flex h-9 cursor-pointer items-center gap-2">
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} className="h-4 w-4 accent-[var(--brand)]" />
+            Show archived
+          </label>
+        </div>
       </div>
 
       {rows.length === 0 ? (
         <EmptyState title="No items match" description="Try a different search or category." />
       ) : (
         <>
-          {/* Phones and portrait tablets: one line per item with its best price; tap for every vendor */}
+          {/* Phones and portrait tablets: best price on the right, the other vendors under the item; tap for details */}
           <div className="lg:hidden">
-            {rows.map(({ product, best }, i) => {
+            {rows.map(({ product, quotes, best }, i) => {
               const need = suggestedQty(product);
               const newGroup = i === 0 || rows[i - 1].product.category !== product.category;
+              const others = allVendors ? quotes.filter((q) => q.vendorId !== best?.vendorId) : [];
               return (
                 <Fragment key={product.id}>
                   {newGroup ? <h2 className="border-b border-border pb-2 pt-5 text-[13px] font-semibold text-muted">{product.category}</h2> : null}
@@ -125,6 +133,9 @@ export function ProductsPage() {
                           <>
                             {fmtNum(product.onHand)} of {fmtNum(product.parLevel)} on hand
                             {need > 0 ? <span className="font-medium text-text"> · order {fmtNum(need)}</span> : null}
+                            {others.length > 0 ? (
+                              <span className="tabular mt-0.5 block">{others.map((q) => `${q.vendor.shortName} ${money(q.landedPrice)}`).join(" · ")}</span>
+                            ) : null}
                           </>
                         }
                         value={best ? money(best.landedPrice) : <span className="text-muted">No price</span>}

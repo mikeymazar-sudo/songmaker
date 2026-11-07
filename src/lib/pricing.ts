@@ -1,4 +1,4 @@
-import type { Category, Product, Vendor, VendorId } from "@/data/types";
+import type { Category, Product, Unit, Vendor, VendorId } from "@/data/types";
 import type { AppState, ProductRecord, RoutedLine, RoutingResult, VendorCart, VendorQuote } from "./models";
 import { fmtNum, money, round2, unitLabel } from "./format";
 
@@ -155,6 +155,45 @@ export function priceSpread(quotes: VendorQuote[]): { low: number; high: number;
   const low = quotes[0].landedPrice;
   const high = quotes[quotes.length - 1].landedPrice;
   return { low, high, spreadPct: low > 0 ? (high - low) / low : 0 };
+}
+
+export const BUSINESS_NAME = "Benny's Smash Burgers";
+
+// Item numbers from invoices start with a digit. Codes like "TRS-OREO-25" are ours, so a salesman never sees them.
+const VENDOR_ITEM_NUMBER = /^\d[\dA-Z-]*$/;
+
+interface OrderMessageLine {
+  qty: number;
+  unit: Unit;
+  name: string;
+  sku: string;
+  packSize: string;
+}
+
+/** What a salesman needs to fill the order. No prices or vendor comparisons. */
+export function buildOrderMessage(vendorName: string, dateLabel: string, lines: OrderMessageLine[]): string {
+  return [
+    `${BUSINESS_NAME} order for ${vendorName}`,
+    dateLabel,
+    "",
+    ...lines.map((l) => {
+      const pack = l.packSize ? ` (${l.packSize})` : "";
+      const number = VENDOR_ITEM_NUMBER.test(l.sku) ? ` #${l.sku}` : "";
+      return `${fmtNum(l.qty)} ${unitLabel(l.unit)} - ${l.name}${pack}${number}`;
+    }),
+    "",
+    "Please confirm prices and delivery. Thanks!",
+  ].join("\n");
+}
+
+/** Opens the phone's messages app with the text filled in. The owner picks the contact and presses send. */
+export function smsHref(body: string): string {
+  return `sms:?&body=${encodeURIComponent(body)}`;
+}
+
+/** Opens the mail app with the email filled in. The owner picks the contact and presses send. */
+export function emailHref(subject: string, body: string): string {
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.replace(/\n/g, "\r\n"))}`;
 }
 
 export function buildOrderText(cart: VendorCart, restaurantName: string, dateLabel: string): string {

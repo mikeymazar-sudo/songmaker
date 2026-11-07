@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ChartColumn,
   ClipboardCheck,
   FileText,
   History,
@@ -118,6 +119,10 @@ function MoreMenu({ pendingReview }: { pendingReview: number }) {
               <span className="flex-1">Invoices</span>
               {pendingReview > 0 ? <span className="tabular text-[15px] font-medium text-danger">{pendingReview} to check</span> : null}
             </Link>
+            <Link role="menuitem" href="/graphs" className={item}>
+              <ChartColumn className={icon} />
+              Graphs
+            </Link>
             <Link role="menuitem" href="/audit" className={item}>
               <History className={icon} />
               History
@@ -198,6 +203,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { state, hydrated, auth, authMessage } = useApp();
   const ready = hydrated && auth === "ok";
+  const graphs = isActive(pathname, "/graphs");
   const pendingReview = ready ? state.invoices.filter((i) => i.status === "needs-review").length : 0;
 
   return (
@@ -211,7 +217,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Skeleton />
       ) : (
         <div className="flex min-h-dvh flex-col">
-          <header className="no-print sticky top-0 z-30 border-b border-border bg-bg pt-[env(safe-area-inset-top)]">
+          <header className={cn("no-print sticky top-0 z-30 border-b border-border bg-bg pt-[env(safe-area-inset-top)]", graphs && "phone-landscape:hidden")}>
             <div className="mx-auto flex h-14 w-full max-w-5xl items-center px-4 md:h-16 md:px-8">
               <Link href="/" className="text-[17px] font-semibold tracking-tight text-text">
                 SmartPurchasing
@@ -242,10 +248,20 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </header>
 
-          <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-[calc(var(--tabbar-h)+2rem)] pt-6 md:px-8 md:pb-16 md:pt-10">{children}</main>
+          <main
+            className={cn(
+              "mx-auto w-full max-w-5xl flex-1 px-4 pb-[calc(var(--tabbar-h)+2rem)] pt-6 md:px-8 md:pb-16 md:pt-10",
+              graphs && "phone-landscape:max-w-none phone-landscape:pb-2 phone-landscape:pt-1",
+            )}
+          >
+            {children}
+          </main>
 
           <nav
-            className="no-print fixed inset-x-0 bottom-0 z-20 grid h-[var(--tabbar-h)] grid-cols-4 border-t border-border bg-bg pb-[env(safe-area-inset-bottom)] md:hidden"
+            className={cn(
+              "no-print fixed inset-x-0 bottom-0 z-20 grid h-[var(--tabbar-h)] grid-cols-4 border-t border-border bg-bg pb-[env(safe-area-inset-bottom)] md:hidden",
+              graphs && "phone-landscape:hidden",
+            )}
             aria-label="Main"
           >
             {NAV.map((n) => {
