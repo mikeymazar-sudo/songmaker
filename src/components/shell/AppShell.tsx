@@ -68,7 +68,7 @@ function useDarkMode() {
 }
 
 function MoreMenu({ pendingReview }: { pendingReview: number }) {
-  const { reset, logout } = useApp();
+  const { reset, logout, passcodeEnabled } = useApp();
   const { toast } = useToast();
   const { dark, toggle } = useDarkMode();
   const pathname = usePathname();
@@ -127,39 +127,43 @@ function MoreMenu({ pendingReview }: { pendingReview: number }) {
               {dark ? <Sun className={icon} /> : <Moon className={icon} />}
               {dark ? "Light mode" : "Dark mode"}
             </button>
-            <button
-              role="menuitem"
-              type="button"
-              className={item}
-              onClick={async () => {
-                setOpen(false);
-                const typed = window.prompt(
-                  "This deletes every count, invoice and order for everyone and puts the original sample data back. Type RESET to continue.",
-                );
-                if (typed !== "RESET") return;
-                try {
-                  await reset();
-                  toast({ title: "Sample data restored", description: "Everything is back to the original data.", tone: "info" });
-                } catch (err) {
-                  toast({ title: "Reset failed", description: err instanceof Error ? err.message : "Try again.", tone: "danger" });
-                }
-              }}
-            >
-              <RotateCcw className={icon} />
-              Start over with sample data
-            </button>
-            <button
-              role="menuitem"
-              type="button"
-              className={item}
-              onClick={() => {
-                setOpen(false);
-                void logout();
-              }}
-            >
-              <LogOut className={icon} />
-              Sign out
-            </button>
+            {passcodeEnabled ? (
+              <>
+                <button
+                  role="menuitem"
+                  type="button"
+                  className={item}
+                  onClick={async () => {
+                    setOpen(false);
+                    const typed = window.prompt(
+                      "This deletes every count, invoice and order for everyone and puts the original sample data back. Type RESET to continue.",
+                    );
+                    if (typed !== "RESET") return;
+                    try {
+                      await reset();
+                      toast({ title: "Sample data restored", description: "Everything is back to the original data.", tone: "info" });
+                    } catch (err) {
+                      toast({ title: "Reset failed", description: err instanceof Error ? err.message : "Try again.", tone: "danger" });
+                    }
+                  }}
+                >
+                  <RotateCcw className={icon} />
+                  Start over with sample data
+                </button>
+                <button
+                  role="menuitem"
+                  type="button"
+                  className={item}
+                  onClick={() => {
+                    setOpen(false);
+                    void logout();
+                  }}
+                >
+                  <LogOut className={icon} />
+                  Sign out
+                </button>
+              </>
+            ) : null}
           </div>
         </>
       ) : null}

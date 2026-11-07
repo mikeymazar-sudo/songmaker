@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { serverEnv } from "./env";
+import { passcodeEnabled, serverEnv } from "./env";
 
 export const SESSION_COOKIE = "sp_session";
 const SESSION_DAYS = 30;
@@ -59,6 +59,7 @@ export function readCookie(request: Request, name: string): string | undefined {
 }
 
 export function isAuthenticated(request: Request): boolean {
+  if (!passcodeEnabled()) return true;
   return verifySessionToken(readCookie(request, SESSION_COOKIE));
 }
 
@@ -91,13 +92,17 @@ export function forbidden(): Response {
   return Response.json({ error: "Cross-site request blocked" }, { status: 403 });
 }
 
+function clientIp(request: Request): string {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+}
+
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 15 * 60_000;
 const MAX_ATTEMPTS = 10;
 
 /** Per-instance login throttle: at most 10 failed attempts per client in 15 minutes. */
 export function loginAllowed(request: Request): boolean {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+  const ip = clientIp(request);
   const now = Date.now();
   const entry = attempts.get(ip);
   if (!entry || entry.resetAt < now) return true;
@@ -105,9 +110,27 @@ export function loginAllowed(request: Request): boolean {
 }
 
 export function recordLoginFailure(request: Request): void {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
+  const ip = clientIp(request);
   const now = Date.now();
   const entry = attempts.get(ip);
   if (!entry || entry.resetAt < now) attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS });
   else entry.count += 1;
+}
+
+const reads = new Map<string, { count: number; resetAt: number }>();
+const READ_WINDOW_MS = 60 * 60_000;
+const MAX_READS = 30;
+
+/** Each invoice read costs money. Without a passcode anyone can call it, so cap it: 30 an hour per client, per server instance. */
+export function extractAllowed(request: Request): boolean {
+  if (passcodeEnabled()) return true;
+  const ip = clientIp(request);
+  const now = Date.now();
+  const entry = reads.get(ip);
+  if (!entry || entry.resetAt < now) {
+    reads.set(ip, { count: 1, resetAt: now + READ_WINDOW_MS });
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= MAX_READS;
 }

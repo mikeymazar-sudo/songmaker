@@ -1,6 +1,6 @@
 import { isAuthenticated, unauthorized } from "@/lib/server/auth";
 import { seedIfEmpty } from "@/lib/server/db";
-import { isConfigured } from "@/lib/server/env";
+import { isConfigured, passcodeEnabled } from "@/lib/server/env";
 
 export async function GET(request: Request) {
   if (!isAuthenticated(request)) return unauthorized();
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   }
   try {
     const state = await seedIfEmpty();
-    return Response.json({ state, extraction: isConfigured().extraction });
+    return Response.json({ state, extraction: isConfigured().extraction, passcode: passcodeEnabled() });
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : "Failed to load" }, { status: 500 });
   }

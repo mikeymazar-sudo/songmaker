@@ -438,6 +438,8 @@ interface StoreValue {
   syncStatus: SyncStatus;
   syncError: string | null;
   extractionEnabled: boolean;
+  /** False when the server has no passcode: no login, no sign out, no start over. */
+  passcodeEnabled: boolean;
   login: (passcode: string) => Promise<string | null>;
   logout: () => Promise<void>;
   reset: () => Promise<void>;
@@ -515,6 +517,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
   const [extractionEnabled, setExtractionEnabled] = useState(false);
+  const [passcodeEnabled, setPasscodeEnabled] = useState(false);
   const [tick, setTick] = useState(0);
   const [ui, setUiState] = useState<UiState>({ productQuery: "", selectedInvoiceId: null, selectedProductId: null, nonce: 0 });
 
@@ -543,12 +546,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAuthMessage(await readError(res));
         return;
       }
-      const body = (await res.json()) as { state: AppState; extraction: boolean };
+      const body = (await res.json()) as { state: AppState; extraction: boolean; passcode: boolean };
       // A tap landed while this was loading. Applying the older copy would erase it before it syncs.
       if (latest.current !== seen) return;
       lastSynced.current = body.state;
       dispatch({ type: "HYDRATE", state: body.state });
       setExtractionEnabled(Boolean(body.extraction));
+      setPasscodeEnabled(Boolean(body.passcode));
       setAuth("ok");
       setAuthMessage(null);
       setHydrated(true);
@@ -676,6 +680,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       syncStatus,
       syncError,
       extractionEnabled,
+      passcodeEnabled,
       login,
       logout,
       reset,
@@ -683,7 +688,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ui,
       setUi: (patch) => setUiState((prev) => ({ ...prev, ...patch })),
     }),
-    [state, hydrated, auth, authMessage, syncStatus, syncError, extractionEnabled, login, logout, reset, reload, ui],
+    [state, hydrated, auth, authMessage, syncStatus, syncError, extractionEnabled, passcodeEnabled, login, logout, reset, reload, ui],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

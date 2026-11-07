@@ -42,7 +42,7 @@ The layout is phone-first: bottom tabs on phones, top tabs from tablet width up.
    | `APP_PASSCODE` | The owner login passcode. |
    | `ANTHROPIC_API_KEY` | Optional. Enables real invoice extraction with Claude. |
 
-4. `npm install && npm run dev`, open http://localhost:3000, sign in with the passcode. The first load seeds the database from `src/data/seed.ts`. The reset button in the header deletes everything and reseeds.
+4. `npm install && npm run dev`, open http://localhost:3000. The first load seeds the database from `src/data/seed.ts`. The reset button in the header deletes everything and reseeds.
 
 To rotate the passcode, change `APP_PASSCODE` and redeploy. To rotate the database key, update the `db_key` row and `APP_DB_KEY` together.
 

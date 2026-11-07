@@ -15,6 +15,11 @@ export const serverEnv = {
   anthropicApiKey: () => process.env.ANTHROPIC_API_KEY ?? "",
 };
 
+/** No passcode on the server means anyone with the link can use the app. Set APP_PASSCODE to turn login back on. */
+export function passcodeEnabled(): boolean {
+  return Boolean(process.env.APP_PASSCODE);
+}
+
 export function isConfigured(): { db: boolean; auth: boolean; extraction: boolean } {
   return {
     db: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_PUBLISHABLE_KEY && process.env.APP_DB_KEY),

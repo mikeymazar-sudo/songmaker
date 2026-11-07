@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
-import { forbidden, isAuthenticated, sameOrigin, unauthorized } from "@/lib/server/auth";
+import { extractAllowed, forbidden, isAuthenticated, sameOrigin, unauthorized } from "@/lib/server/auth";
 import { loadState } from "@/lib/server/db";
 import { isConfigured, serverEnv } from "@/lib/server/env";
 
@@ -69,6 +69,9 @@ export async function POST(request: Request) {
   if (!isAuthenticated(request)) return unauthorized();
   if (!isConfigured().extraction) {
     return Response.json({ error: "Real extraction needs ANTHROPIC_API_KEY on the server." }, { status: 503 });
+  }
+  if (!extractAllowed(request)) {
+    return Response.json({ error: "Too many invoices this hour. Try again later." }, { status: 429 });
   }
 
   let form: FormData;

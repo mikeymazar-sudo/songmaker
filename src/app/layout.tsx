@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   description: "Count your stock, see the cheapest vendor for every item, and turn delivery invoices into up-to-date prices.",
   applicationName: "SmartPurchasing AI",
   appleWebApp: { capable: true, title: "SmartPurchasing", statusBarStyle: "default" },
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = {
