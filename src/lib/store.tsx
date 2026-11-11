@@ -19,6 +19,8 @@ import { fmtNum, money, nowISO, round2, signedPct, uid, unitLabel } from "./form
 import { diffState } from "./sync";
 
 const ACTOR = "Owner";
+/** Where a practice copy keeps its changes, so they survive closing the tab. */
+const PRACTICE_KEY = "sp-practice-state-v1";
 const AUDIT_LIMIT = 800;
 
 export type Action =
@@ -468,6 +470,10 @@ interface StoreValue {
   extractionEnabled: boolean;
   /** False when the server has no passcode: no login, no sign out, no start over. */
   passcodeEnabled: boolean;
+  /** True on a practice copy: sample data, changes kept in this browser only. */
+  practice: boolean;
+  /** Throws away the practice copy's changes and loads the sample data again. */
+  resetPractice: () => Promise<void>;
   login: (passcode: string) => Promise<string | null>;
   logout: () => Promise<void>;
   reset: () => Promise<void>;
@@ -546,6 +552,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [extractionEnabled, setExtractionEnabled] = useState(false);
   const [passcodeEnabled, setPasscodeEnabled] = useState(false);
+  const [practice, setPractice] = useState(false);
+  const practiceRef = useRef(false);
   const [tick, setTick] = useState(0);
   const [ui, setUiState] = useState<UiState>({ productQuery: "", selectedInvoiceId: null, selectedProductId: null, nonce: 0 });
 
@@ -574,11 +582,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAuthMessage(await readError(res));
         return;
       }
-      const body = (await res.json()) as { state: AppState; extraction: boolean; passcode: boolean };
+      const body = (await res.json()) as { state: AppState; extraction: boolean; passcode: boolean; practice?: boolean };
       // A tap landed while this was loading. Applying the older copy would erase it before it syncs.
       if (latest.current !== seen) return;
-      lastSynced.current = body.state;
-      dispatch({ type: "HYDRATE", state: body.state });
+      let next = body.state;
+      if (body.practice) {
+        try {
+          const saved = JSON.parse(localStorage.getItem(PRACTICE_KEY) ?? "null") as AppState | null;
+          if (saved && saved.version === body.state.version && Array.isArray(saved.products) && saved.products.length > 0) next = saved;
+        } catch {
+          // Nothing saved, or it cannot be read: start from the sample data.
+        }
+      }
+      practiceRef.current = Boolean(body.practice);
+      setPractice(Boolean(body.practice));
+      lastSynced.current = next;
+      dispatch({ type: "HYDRATE", state: next });
       setExtractionEnabled(Boolean(body.extraction));
       setPasscodeEnabled(Boolean(body.passcode));
       setAuth("ok");
@@ -605,6 +624,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (auth !== "ok") return;
     const onVisible = () => {
+      // A practice copy lives only in this browser, so there is nothing newer to fetch.
+      if (practiceRef.current) return;
       if (document.visibilityState !== "visible" || inFlight.current || hasUnsaved()) return;
       void reload();
     };
@@ -651,6 +672,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [state, hydrated, auth, tick]);
+
+  // A practice copy saves itself in this browser.
+  useEffect(() => {
+    if (!practice || !hydrated) return;
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem(PRACTICE_KEY, JSON.stringify(state));
+      } catch {
+        // Storage is full or blocked: the copy still works until the tab closes.
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [state, practice, hydrated]);
+
+  const resetPractice = useCallback(async () => {
+    try {
+      localStorage.removeItem(PRACTICE_KEY);
+    } catch {
+      // Nothing to remove.
+    }
+    await reload();
+  }, [reload]);
 
   const login = useCallback(
     async (passcode: string): Promise<string | null> => {
@@ -709,6 +752,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       syncError,
       extractionEnabled,
       passcodeEnabled,
+      practice,
+      resetPractice,
       login,
       logout,
       reset,
@@ -716,7 +761,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ui,
       setUi: (patch) => setUiState((prev) => ({ ...prev, ...patch })),
     }),
-    [state, hydrated, auth, authMessage, syncStatus, syncError, extractionEnabled, passcodeEnabled, login, logout, reset, reload, ui],
+    [state, hydrated, auth, authMessage, syncStatus, syncError, extractionEnabled, passcodeEnabled, practice, resetPractice, login, logout, reset, reload, ui],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

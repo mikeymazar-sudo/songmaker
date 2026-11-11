@@ -37,6 +37,7 @@ export function useInvoiceCapture({
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [offOpen, setOffOpen] = useState(false);
+  const { practice } = useApp();
   const { ingest, addSample, canRead } = useInvoiceUpload({ onCreated, vendorChoice });
 
   const scan = () => {
@@ -86,8 +87,14 @@ export function useInvoiceCapture({
         footer={<Button onClick={() => setOffOpen(false)}>OK</Button>}
       >
         <div className="space-y-3 text-[15px] leading-relaxed text-text-2">
-          <p>The app can&apos;t read invoice photos yet. It needs its AI key added on the server, a one-time setup (ANTHROPIC_API_KEY in Vercel).</p>
-          <p>Until then nothing is read from a photo, so nothing wrong can get into your prices.</p>
+          {practice ? (
+            <p>This practice copy doesn&apos;t read photos. Nothing is read or guessed from one.</p>
+          ) : (
+            <>
+              <p>The app can&apos;t read invoice photos yet. It needs its AI key added on the server, a one-time setup (ANTHROPIC_API_KEY in Vercel).</p>
+              <p>Until then nothing is read from a photo, so nothing wrong can get into your prices.</p>
+            </>
+          )}
           <div className="border-t border-border pt-3">
             <p className="mb-2 font-medium text-text">Try the checking screen with a practice sample</p>
             <SampleButtons

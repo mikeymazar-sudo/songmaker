@@ -27,3 +27,12 @@ export function isConfigured(): { db: boolean; auth: boolean; extraction: boolea
     extraction: Boolean(process.env.ANTHROPIC_API_KEY),
   };
 }
+
+/**
+ * A deployment with no database that is not production runs as a practice copy: built-in sample data, kept in
+ * the browser, nothing saved on a server. It lets a branch be tried on a phone without touching the real data.
+ */
+export function practiceMode(): boolean {
+  if (isConfigured().db) return false;
+  return process.env.VERCEL_ENV ? process.env.VERCEL_ENV === "preview" : process.env.NODE_ENV !== "production";
+}

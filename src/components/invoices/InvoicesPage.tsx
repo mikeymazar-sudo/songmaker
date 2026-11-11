@@ -34,7 +34,7 @@ export function invoiceStanding(state: AppState, invoice: InvoiceRecord): { labe
 }
 
 export function InvoicesPage() {
-  const { state, ui, setUi } = useApp();
+  const { state, ui, setUi, practice } = useApp();
   const [filter, setFilter] = useState<Filter>(() =>
     state.invoices.some((i) => i.status === "needs-review" || i.status === "processing") ? "review" : "all",
   );
@@ -128,8 +128,15 @@ export function InvoicesPage() {
           <Panel tone="warn" className="mt-4">
             <p className="text-[15px] font-semibold text-text">Photo reading is off</p>
             <p className="mt-1 text-[15px] leading-relaxed text-text-2">
-              The app can&apos;t read invoice photos until its AI key is added on the server. Nothing is read or guessed from a photo until then.
+              {practice
+                ? "This practice copy doesn't read photos. Pick a vendor below to try the checking screen with a made-up sample."
+                : "The app can't read invoice photos until its AI key is added on the server. Nothing is read or guessed from a photo until then."}
             </p>
+            {practice ? (
+              <div className="mt-3">
+                <SampleButtons onPick={capture.addSample} />
+              </div>
+            ) : null}
           </Panel>
         )}
 

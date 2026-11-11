@@ -196,7 +196,7 @@ function Skeleton() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { state, hydrated, auth, authMessage } = useApp();
+  const { state, hydrated, auth, authMessage, practice, resetPractice } = useApp();
   const ready = hydrated && auth === "ok";
   const graphs = isActive(pathname, "/graphs");
   const pendingReview = ready ? state.invoices.filter((i) => i.status === "needs-review").length : 0;
@@ -246,6 +246,19 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             </div>
           </header>
+
+          {practice ? (
+            <div className={cn("no-print border-b border-border bg-surface-3", graphs && "phone-landscape:hidden")}>
+              <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-2 text-[13px] text-text-2 md:px-8">
+                <span>
+                  <span className="font-semibold text-text">Practice copy.</span> Sample data, saved only on this device.
+                </span>
+                <button type="button" onClick={() => void resetPractice()} className="shrink-0 font-medium text-text underline underline-offset-2">
+                  Start over
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <main
             className={cn(

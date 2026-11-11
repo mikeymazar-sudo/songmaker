@@ -29,6 +29,10 @@ The app does not trust a single reading of a photo. Every invoice goes through t
 
 A photo is never filled in with made-up numbers. Without `ANTHROPIC_API_KEY` the camera button explains that reading is off; practice samples are separate and labelled.
 
+## Practice copies
+
+A deployment that has no database settings and is not production (a Vercel preview, or `npm run dev` without `.env.local`) runs as a practice copy: the sample data from `src/data/seed.ts`, kept in the browser's local storage, with nothing saved on a server. A strip under the header says so and has a Start over link. This is how a branch can be tried on a phone without touching the real data. Production with missing settings still shows the setup notice.
+
 ## Pricing rules
 
 - Vendor prices are normalized to each product's base unit (case, lb, gal, each, bag, bottle, bucket).
