@@ -3,13 +3,13 @@
 import {
   ChartColumn,
   ClipboardCheck,
-  FileText,
   History,
   House,
   LogOut,
   Menu,
   Moon,
   Package,
+  ReceiptText,
   RotateCcw,
   Sun,
   Truck,
@@ -32,11 +32,12 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-// The weekly routine. Invoices and history live in the menu.
+// The weekly routine, in the order it happens. Graphs and history live in the menu.
 const NAV: NavItem[] = [
   { href: "/", label: "Home", icon: House },
   { href: "/order", label: "Count", icon: ClipboardCheck },
   { href: "/orders", label: "Order", icon: Truck },
+  { href: "/invoices", label: "Invoices", icon: ReceiptText },
   { href: "/products", label: "Items", icon: Package },
 ];
 
@@ -68,7 +69,7 @@ function useDarkMode() {
   return { dark, toggle };
 }
 
-function MoreMenu({ pendingReview }: { pendingReview: number }) {
+function MoreMenu() {
   const { reset, logout, passcodeEnabled } = useApp();
   const { toast } = useToast();
   const { dark, toggle } = useDarkMode();
@@ -97,14 +98,13 @@ function MoreMenu({ pendingReview }: { pendingReview: number }) {
     <div className="relative">
       <button
         type="button"
-        aria-label={pendingReview > 0 ? `Menu, ${pendingReview} invoices to check` : "Menu"}
+        aria-label="Menu"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="relative flex h-11 w-11 items-center justify-center rounded-full text-text active:bg-surface-3 md:hover:bg-surface-3"
       >
         <Menu className="h-5 w-5" strokeWidth={1.75} />
-        {pendingReview > 0 ? <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-danger ring-2 ring-bg" aria-hidden /> : null}
       </button>
       {open ? (
         <>
@@ -114,11 +114,6 @@ function MoreMenu({ pendingReview }: { pendingReview: number }) {
             className="sheet-in fixed inset-x-0 bottom-0 z-50 rounded-t-3xl bg-surface p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:absolute md:inset-x-auto md:bottom-auto md:right-0 md:top-12 md:w-64 md:rounded-2xl md:border md:border-border md:shadow-lg"
           >
             <div className="mx-auto mb-2 mt-0.5 h-1 w-9 rounded-full bg-border-strong md:hidden" aria-hidden />
-            <Link role="menuitem" href="/invoices" className={item}>
-              <FileText className={icon} />
-              <span className="flex-1">Invoices</span>
-              {pendingReview > 0 ? <span className="tabular text-[15px] font-medium text-danger">{pendingReview} to check</span> : null}
-            </Link>
             <Link role="menuitem" href="/graphs" className={item}>
               <ChartColumn className={icon} />
               Graphs
@@ -217,12 +212,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Skeleton />
       ) : (
         <div className="flex min-h-dvh flex-col">
-          <header className={cn("no-print sticky top-0 z-30 border-b border-border bg-bg pt-[env(safe-area-inset-top)]", graphs && "phone-landscape:hidden")}>
+          <header className={cn("no-print sticky top-0 z-30 border-b border-border bg-bg/90 pt-[env(safe-area-inset-top)] backdrop-blur-md", graphs && "phone-landscape:hidden")}>
             <div className="mx-auto flex h-14 w-full max-w-5xl items-center px-4 md:h-16 md:px-8">
-              <Link href="/" className="text-[17px] font-semibold tracking-tight text-text">
+              <Link href="/" className="flex items-center gap-2.5 text-[17px] font-semibold tracking-tight text-text">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-[11px] font-bold tracking-tight text-brand-fg" aria-hidden>
+                  SP
+                </span>
                 SmartPurchasing
               </Link>
-              <nav className="ml-10 hidden h-full items-center gap-7 md:flex" aria-label="Main">
+              <nav className="ml-8 hidden h-full items-center gap-6 md:flex" aria-label="Main">
                 {NAV.map((n) => {
                   const active = isActive(pathname, n.href);
                   return (
@@ -236,6 +234,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       )}
                     >
                       {n.label}
+                      {n.href === "/invoices" && pendingReview > 0 ? <span className="tabular ml-1.5 text-[13px] font-medium text-warning">{pendingReview}</span> : null}
                     </Link>
                   );
                 })}
@@ -243,7 +242,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div className="ml-auto flex items-center">
                 <SyncIndicator className="mr-2" />
                 <GlobalSearch />
-                <MoreMenu pendingReview={pendingReview} />
+                <MoreMenu />
               </div>
             </div>
           </header>
@@ -259,7 +258,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <nav
             className={cn(
-              "no-print fixed inset-x-0 bottom-0 z-20 grid h-[var(--tabbar-h)] grid-cols-4 border-t border-border bg-bg pb-[env(safe-area-inset-bottom)] md:hidden",
+              "no-print fixed inset-x-0 bottom-0 z-20 grid h-[var(--tabbar-h)] grid-cols-5 border-t border-border bg-bg/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden",
               graphs && "phone-landscape:hidden",
             )}
             aria-label="Main"
@@ -274,7 +273,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                   aria-current={active ? "page" : undefined}
                   className={cn("flex flex-col items-center justify-center gap-1 text-[11px] font-medium", active ? "text-text" : "text-muted")}
                 >
-                  <Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.25 : 1.75} />
+                  <span className="relative">
+                    <Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.25 : 1.75} />
+                    {n.href === "/invoices" && pendingReview > 0 ? (
+                      <span className="tabular absolute -right-2.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-[10px] font-bold leading-none text-white">
+                        {pendingReview}
+                        <span className="sr-only"> to check</span>
+                      </span>
+                    ) : null}
+                  </span>
                   {n.label}
                 </Link>
               );

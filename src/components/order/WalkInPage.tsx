@@ -135,7 +135,7 @@ export function WalkInPage() {
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between gap-3 px-4 md:h-16 md:px-8">
           <div className="min-w-0 truncate text-[15px]">
             <span className="tabular font-semibold text-text">{money(routing.total)}</span>
-            <span className="text-muted"> · {fmtNum(routing.units)} units</span>
+            <span className="text-muted"> · {fmtNum(routing.units)} unit{routing.units === 1 ? "" : "s"}</span>
             {routing.savings > 0 ? <span className="tabular hidden text-success sm:inline"> · saves {money(routing.savings)}</span> : null}
           </div>
           <Link href="/orders" className={buttonStyles("primary", "sm")}>

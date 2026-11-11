@@ -8,9 +8,9 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "SmartPurchasing AI", template: "%s · SmartPurchasing AI" },
+  title: { default: "SmartPurchasing", template: "%s · SmartPurchasing" },
   description: "Count your stock, see the cheapest vendor for every item, and turn delivery invoices into up-to-date prices.",
-  applicationName: "SmartPurchasing AI",
+  applicationName: "SmartPurchasing",
   appleWebApp: { capable: true, title: "SmartPurchasing", statusBarStyle: "default" },
   robots: { index: false, follow: false },
 };

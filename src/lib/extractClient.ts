@@ -1,6 +1,7 @@
 import type { Category, VendorId } from "@/data/types";
-import type { AppState, ExtractedLine, InvoiceRecord } from "./models";
+import type { AppState, ExtractedLine, InvoiceRecord, InvoiceVerification } from "./models";
 import { round2, todayISO, uid } from "./format";
+import { reconcileReads, type SecondRead } from "./invoiceAudit";
 
 export interface ExtractedLineDto {
   sku: string;
@@ -15,7 +16,17 @@ export interface ExtractedLineDto {
   confidence: number;
   normalizedUnitPrice: number | null;
   flags: string[];
+  /** True for a fee the reader added because a handwritten total is higher than the printed lines. */
+  derived?: boolean;
 }
+
+/** What /api/extract/verify returns: the same paper, read again without sight of the first read. */
+export interface SecondReadResponse {
+  read: SecondRead;
+}
+
+/** The second read, or the reason there is none. */
+export type SecondReadResult = { read: SecondRead } | { error: string };
 
 export interface ExtractResponse {
   invoice: {
@@ -50,7 +61,7 @@ export function buildPendingInvoice(vendorId: VendorId, source: InvoiceRecord["s
     extraction: "claude",
     fileName,
     uploadedAt: new Date().toISOString(),
-    notes: "Reading with Claude…",
+    notes: "Reading…",
   };
 }
 
@@ -67,6 +78,7 @@ export function finalizeExtraction(
   pending: InvoiceRecord,
   data: ExtractResponse,
   userVendorChoice?: VendorId,
+  second?: SecondReadResult,
 ): Partial<InvoiceRecord> {
   const inv = data.invoice;
   // The owner's explicit choice wins; the document's own claim is only a fallback.
@@ -74,7 +86,7 @@ export function finalizeExtraction(
   const vendor = state.vendors.find((v) => v.id === vendorId);
   const productIds = new Set(state.products.map((p) => p.id));
 
-  const lines: ExtractedLine[] = inv.lines.map((l, i) => {
+  let lines: ExtractedLine[] = inv.lines.map((l, i) => {
     const productId = l.productId && productIds.has(l.productId) ? l.productId : undefined;
     const product = productId ? state.products.find((p) => p.id === productId) : undefined;
     const vp = productId ? state.vendorProducts.find((x) => x.productId === productId && x.vendorId === vendorId) : undefined;
@@ -109,8 +121,22 @@ export function finalizeExtraction(
       normalizationFactor,
       previousPrice: vp?.price,
       flags: Array.from(new Set(flags)),
+      derived: l.isFee && l.derived ? true : undefined,
     };
   });
+
+  const printed = round2(Number(inv.total) || 0);
+  const verification: InvoiceVerification = { printedTotal: printed > 0 ? printed : undefined };
+  if (second && "read" in second) {
+    const reconciled = reconcileReads(pending.id, lines, { tax: round2(Number(inv.tax) || 0), printedTotal: verification.printedTotal }, second.read, new Date().toISOString());
+    // A corrected unit price changes the price per base unit that approval writes into the catalog.
+    lines = reconciled.lines.map((l) =>
+      l.check?.was && l.productId && l.normalizationFactor !== undefined ? { ...l, normalizedUnitPrice: round2(l.unitPrice * l.normalizationFactor) } : l,
+    );
+    verification.secondRead = reconciled.secondRead;
+  } else if (second) {
+    verification.secondReadError = second.error;
+  }
 
   const subtotal = round2(lines.filter((l) => !l.isFee).reduce((s, l) => s + l.total, 0));
   const fees = round2(lines.filter((l) => l.isFee).reduce((s, l) => s + l.total, 0));
@@ -119,7 +145,6 @@ export function finalizeExtraction(
   const computed = round2(subtotal + fees + tax);
   const notes: string[] = [];
   if (inv.notes) notes.push(inv.notes);
-  if (printedTotal > 0 && Math.abs(printedTotal - computed) > 0.05) notes.push(`Printed total ${printedTotal.toFixed(2)} differs from extracted lines (${computed.toFixed(2)}).`);
   if (!inv.vendorId && !userVendorChoice) notes.push(`Vendor on document: ${inv.vendorNameOnDocument || "unknown"}; assigned to ${vendor?.name ?? vendorId}. Change it before approving if that is wrong.`);
   if (inv.vendorId && userVendorChoice && inv.vendorId !== userVendorChoice) notes.push(`The document looks like ${state.vendors.find((v) => v.id === inv.vendorId)?.name ?? inv.vendorId}; kept your choice of ${vendor?.name ?? vendorId}.`);
   const confidence = lines.length ? round2(lines.reduce((s, l) => s + l.confidence, 0) / lines.length) : 0;
@@ -137,6 +162,7 @@ export function finalizeExtraction(
     lines,
     confidence,
     extraction: "claude",
-    notes: notes.join(" ") || "Extracted with Claude",
+    notes: notes.join(" ") || undefined,
+    verification,
   };
 }

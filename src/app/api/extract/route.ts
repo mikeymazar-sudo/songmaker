@@ -1,13 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
-import { extractAllowed, forbidden, isAuthenticated, sameOrigin, unauthorized } from "@/lib/server/auth";
+import { forbidden, isAuthenticated, readAllowed, sameOrigin, unauthorized } from "@/lib/server/auth";
 import { loadState } from "@/lib/server/db";
 import { isConfigured, serverEnv } from "@/lib/server/env";
+import { modelErrorResponse, readInvoiceUpload, VENDOR_IDS } from "@/lib/server/invoiceUpload";
 
 export const maxDuration = 120;
 
-const VENDOR_IDS = ["cheney", "sysco", "usfoods", "trs", "boomers"] as const;
 const CATEGORY_IDS = [
   "Meat & Proteins",
   "Frozen Foods & Bread",
@@ -28,6 +28,7 @@ const LineSchema = z.object({
   unitPrice: z.number().describe("Price per billed unit"),
   total: z.number().describe("Extended line total"),
   isFee: z.boolean().describe("True for delivery, fuel, surcharge or other non-merchandise lines"),
+  derived: z.boolean().describe("True only for a fee line that is not on the document, which you added because a handwritten total is higher than the lines"),
   productId: z.string().nullable().describe("Master product id from the catalog when this line clearly is that product, otherwise null"),
   category: z.enum(CATEGORY_IDS).nullable(),
   confidence: z.number().describe("0 to 1 confidence that qty, price and description were read correctly"),
@@ -54,7 +55,7 @@ const SYSTEM_PROMPT = `You are the invoice reader for a restaurant purchasing sy
 Extract every line on the document:
 - One entry per merchandise line, in document order. Keep descriptions and item codes exactly as printed.
 - Delivery fees, fuel surcharges and other non-merchandise charges are separate lines with isFee = true. Sales tax is NOT a line; report it in the tax field.
-- Local runners sometimes hand-write prices and add an unprinted percentage delivery fee. If the handwritten grand total exceeds the printed lines, add a fee line for the difference and flag it as "Fee not printed; derived from handwritten total".
+- Local runners sometimes hand-write prices and add an unprinted percentage delivery fee. If the handwritten grand total exceeds the printed lines, add a fee line for the difference, set derived = true on it, and flag it as "Fee not printed; derived from handwritten total". derived is false on every other line.
 - Catch-weight items (billed per pound with a case count) keep qty = cases and unitPrice = total / cases; add a flag describing the per-pound pricing.
 - Map a line to a master product id only when it is clearly the same item, pack size and form. Prefer the known SKU mappings for that vendor. When unsure, leave productId null; never guess.
 - normalizedUnitPrice is the price per the master product's base unit: per case for case products, total divided by pounds for lb products, per gallon for gal products, per unit for each/bag/bottle/bucket products. Null when productId is null.
@@ -62,36 +63,19 @@ Extract every line on the document:
 - vendorId: choose from the known vendors only when the document clearly belongs to one of them.
 - Dates as YYYY-MM-DD. Numbers as plain numbers. Do not invent lines that are not on the document.`;
 
-const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
-
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return forbidden();
   if (!isAuthenticated(request)) return unauthorized();
   if (!isConfigured().extraction) {
     return Response.json({ error: "Real extraction needs ANTHROPIC_API_KEY on the server." }, { status: 503 });
   }
-  if (!extractAllowed(request)) {
+  if (!readAllowed(request, "first")) {
     return Response.json({ error: "Too many invoices this hour. Try again later." }, { status: 429 });
   }
 
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
-    return Response.json({ error: "Expected multipart form data" }, { status: 400 });
-  }
-  const file = form.get("file");
-  if (!(file instanceof File)) return Response.json({ error: "Missing file" }, { status: 400 });
-  if (file.size > 4_000_000) return Response.json({ error: "File is larger than 4 MB. Take a smaller photo or split the PDF." }, { status: 413 });
-  const rawHint = String(form.get("vendorId") ?? "");
-  const vendorHint = (VENDOR_IDS as readonly string[]).includes(rawHint) ? rawHint : "";
-
-  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-  if (!isPdf && !IMAGE_TYPES.has(file.type)) {
-    return Response.json({ error: `Unsupported file type ${file.type || "unknown"}. Use a JPEG, PNG, WebP or PDF.` }, { status: 415 });
-  }
-  const mediaType = isPdf ? "application/pdf" : file.type;
-  const data = Buffer.from(await file.arrayBuffer()).toString("base64");
+  const upload = await readInvoiceUpload(request);
+  if (!upload.ok) return upload.response;
+  const { document: documentBlock, vendorHint } = upload;
 
   let state: Awaited<ReturnType<typeof loadState>> = null;
   try {
@@ -106,10 +90,6 @@ export async function POST(request: Request) {
     .filter((vp) => !vendorHint || vp.vendorId === vendorHint)
     .map((vp) => ({ vendorId: vp.vendorId, sku: vp.sku, description: vp.description, packSize: vp.packSize, productId: vp.productId, price: vp.price, priceUnit: vp.priceUnit }));
   const vendors = (state?.vendors ?? []).map((v) => ({ id: v.id, name: v.name, type: v.type, fees: v.fees }));
-
-  const documentBlock: Anthropic.ContentBlockParam = isPdf
-    ? { type: "document", source: { type: "base64", media_type: "application/pdf", data } }
-    : { type: "image", source: { type: "base64", media_type: mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data } };
 
   const context = [
     vendorHint ? `Vendor hint from the user: ${vendorHint}.` : "No vendor hint; identify the vendor from the document.",
@@ -135,18 +115,6 @@ export async function POST(request: Request) {
     if (!parsed) return Response.json({ error: "The model returned an unreadable result. Try a clearer photo." }, { status: 502 });
     return Response.json({ invoice: parsed, usage: response.usage });
   } catch (error) {
-    if (error instanceof Anthropic.AuthenticationError) {
-      return Response.json({ error: "The ANTHROPIC_API_KEY on the server was rejected." }, { status: 503 });
-    }
-    if (error instanceof Anthropic.RateLimitError) {
-      return Response.json({ error: "Rate limited by the model API. Try again in a minute." }, { status: 429 });
-    }
-    if (error instanceof Anthropic.APIError) {
-      return Response.json({ error: `Model API error ${error.status}: ${error.message}` }, { status: 502 });
-    }
-    if (error instanceof Anthropic.AnthropicError) {
-      return Response.json({ error: "The model's answer could not be parsed. Try a clearer photo or fewer pages." }, { status: 502 });
-    }
-    return Response.json({ error: error instanceof Error ? error.message : "Extraction failed" }, { status: 500 });
+    return modelErrorResponse(error);
   }
 }

@@ -6,17 +6,28 @@ Data lives in a Supabase Postgres database behind the app's own API routes. The 
 
 ## Screens
 
-The layout is phone-first: bottom tabs on phones, top tabs from tablet width up. Invoices and History live in the menu.
+The layout is phone-first: five bottom tabs on phones, top tabs from tablet width up. Graphs and History live in the menu.
 
 | Route | Tab | What it does |
 | --- | --- | --- |
-| `/` | Home | This week's order total, take an invoice photo, what needs attention, order by vendor, price changes, 30-day spend |
+| `/` | Home | This week's order total, shortcuts to count stock and scan an invoice, what is waiting on the owner, price changes, 30-day spend |
 | `/order` | Count | Walk-in count: +/− for on-hand on every item, running total; tap an item for par, order quantity and vendor prices |
-| `/orders` | Order | Order split by vendor on landed cost, per-line vendor override, smart vs single-vendor routing, approve POs, then text, email, copy or print them |
-| `/products` | Items | Searchable item list with best price and every other vendor's price (price matrix on wide screens), item sheet with vendor SKUs and price history, add/edit/archive |
-| `/invoices` | Menu | Take a photo or upload, simulated or Claude extraction, check against the original, match items, approve into price history |
-| `/graphs` | Menu | Weekly spending by vendor and an item's price over time. A phone held sideways gets a full-screen graph |
+| `/orders` | Order | Order split by vendor on landed cost, per-line vendor override, smart vs single-vendor routing, approve/text/email/copy/print POs |
+| `/invoices` | Invoices | Scan or upload an invoice, see the app's self-check, fix what it flags, approve into price history |
+| `/products` | Items | Searchable item list with best price (price matrix on wide screens), item sheet with vendor SKUs and price history, add/edit/archive |
+| `/graphs` | Menu | Weekly spending by vendor and an item's price over time |
 | `/audit` | Menu | Every count, correction, approval and price change, filterable and exportable as CSV |
+
+## How an invoice is checked
+
+The app does not trust a single reading of a photo. Every invoice goes through this before the owner sees it:
+
+1. **Two separate reads.** The photo is sent to `/api/extract` (reads every line and matches it to the catalog) and, at the same time, to `/api/extract/verify` (a second reader that sees only the photo and copies the numbers off the page). Neither sees the other's work.
+2. **Compared in code.** `reconcileReads` in `src/lib/invoiceAudit.ts` pairs the lines of the two reads and compares quantity, price and line total. Where they differ, arithmetic decides if it can: the read whose quantity × price equals its line total wins, and after that the choice that makes the invoice add up to the total on the paper wins. Lines only one read found are added or flagged, never silently dropped.
+3. **A list of checks.** `auditInvoice` reruns on every edit: two reads agree, each line multiplies out, lines + fees + tax equal the printed total, every line is matched to an item, no price moved more than 20%, the invoice is not already in the app, the date is sane, and an unprinted fee matches the vendor's usual fee.
+4. **The owner sees only what is left.** Lines the checks could not settle are listed first with the reason; everything else is collapsed. Approval is blocked while an item is unmatched or a price is missing, and asks for an explicit "Approve anyway" when a check failed. The outcome of the self-check is written to History with the approval.
+
+A photo is never filled in with made-up numbers. Without `ANTHROPIC_API_KEY` the camera button explains that reading is off; practice samples are separate and labelled.
 
 ## Pricing rules
 
@@ -27,7 +38,7 @@ The layout is phone-first: bottom tabs on phones, top tabs from tablet width up.
 
 ## Setup
 
-1. Create a Supabase project and run `supabase/migrations/20261106000000_init.sql` against it (SQL editor or the Supabase CLI).
+1. Create a Supabase project and run every file in `supabase/migrations/` against it, in order (SQL editor or the Supabase CLI).
 2. Insert the server key that unlocks row level security (any long random string):
    ```sql
    insert into private.app_secrets (key, value) values ('db_key', '<random 64 hex chars>');
@@ -41,7 +52,7 @@ The layout is phone-first: bottom tabs on phones, top tabs from tablet width up.
    | `APP_DB_KEY` | Must equal the `db_key` row above. Server-only. |
    | `APP_SESSION_SECRET` | Random string that signs login cookies. |
    | `APP_PASSCODE` | The owner login passcode. |
-   | `ANTHROPIC_API_KEY` | Optional. Enables real invoice extraction with Claude. |
+   | `ANTHROPIC_API_KEY` | Turns on invoice reading. Without it the app cannot read photos at all. Each invoice costs two model calls. |
 
 4. `npm install && npm run dev`, open http://localhost:3000. The first load seeds the database from `src/data/seed.ts`. The reset button in the header deletes everything and reseeds.
 

@@ -4,6 +4,25 @@ export type ProductRecord = Product & { archived?: boolean; createdAt?: string }
 
 export type MatchStatus = "matched" | "suggested" | "unmatched";
 
+export interface LineValues {
+  qty: number;
+  unitPrice: number;
+  total: number;
+}
+
+/** How a line held up when the invoice was read a second time, and whether the owner has looked at it. */
+export interface LineCheck {
+  /** What the second, separate read made of this line. Absent when no second read ran. */
+  status?: "confirmed" | "corrected" | "unsure";
+  note?: string;
+  /** The first read's numbers, when the second read replaced them. */
+  was?: LineValues;
+  /** The second read's numbers, when the two reads disagree and nothing settled it. */
+  other?: LineValues;
+  /** The owner looked at this line and said it is right. */
+  ok?: boolean;
+}
+
 export interface ExtractedLine extends InvoiceLine {
   lineId: string;
   confidence: number;            // 0..1
@@ -12,6 +31,35 @@ export interface ExtractedLine extends InvoiceLine {
   normalizationFactor?: number;  // base units per billed unit (normalizedUnitPrice = unitPrice * factor)
   previousPrice?: number;        // previous price per base unit at this vendor
   flags: string[];
+  /** A fee that is not printed on the paper; worked out from a handwritten total. */
+  derived?: boolean;
+  check?: LineCheck;
+}
+
+export interface SecondReadSummary {
+  at: string;
+  legibility: "good" | "fair" | "poor";
+  invoiceNumber?: string;
+  date?: string;
+  /** Grand total and tax as the second read saw them on the paper. */
+  total?: number;
+  tax?: number;
+  /** How the first read's lines held up, at the moment the two reads were compared. */
+  lines: number;
+  confirmed: number;
+  corrected: number;
+  unsure: number;
+  added: number;
+  notes?: string;
+}
+
+/** What the app did to check its own reading of an invoice. */
+export interface InvoiceVerification {
+  /** Grand total printed or handwritten on the paper, from the first read. */
+  printedTotal?: number;
+  secondRead?: SecondReadSummary;
+  /** Why the second read did not run, when it failed. */
+  secondReadError?: string;
 }
 
 export type InvoiceStatus = "processing" | "needs-review" | "approved" | "rejected";
@@ -26,6 +74,7 @@ export interface InvoiceRecord extends Omit<Invoice, "status" | "lines"> {
   approvedAt?: string;
   confidence?: number;
   rejectReason?: string;
+  verification?: InvoiceVerification;
 }
 
 export interface PriceHistoryEntry {

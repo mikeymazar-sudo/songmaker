@@ -13,6 +13,7 @@ import {
   type PurchaseOrder,
   type RoutingSettings,
 } from "./models";
+import { auditInvoice, summarizeAudit } from "./invoiceAudit";
 import { routeOrder } from "./pricing";
 import { fmtNum, money, nowISO, round2, signedPct, uid, unitLabel } from "./format";
 import { diffState } from "./sync";
@@ -32,6 +33,7 @@ export type Action =
   | { type: "ADD_INVOICE"; invoice: InvoiceRecord; ts: string }
   | { type: "UPDATE_INVOICE"; invoiceId: string; patch: Partial<InvoiceRecord>; ts: string; audit?: string }
   | { type: "UPDATE_INVOICE_LINE"; invoiceId: string; lineId: string; patch: Partial<ExtractedLine>; ts: string }
+  | { type: "REMOVE_INVOICE_LINE"; invoiceId: string; lineId: string; ts: string }
   | { type: "APPROVE_INVOICE"; invoiceId: string; ts: string }
   | { type: "REJECT_INVOICE"; invoiceId: string; reason?: string; ts: string }
   | { type: "UPSERT_PRODUCT"; product: ProductRecord; ts: string }
@@ -253,6 +255,8 @@ function reducer(state: AppState, action: Action): AppState {
       const updated: ExtractedLine = { ...line, ...action.patch };
       if (action.patch.qty !== undefined || action.patch.unitPrice !== undefined) {
         updated.total = round2(updated.qty * updated.unitPrice);
+        // Typing the numbers in is the owner checking the line.
+        updated.check = { ...updated.check, ok: true };
       }
       const lines = inv.lines.map((l) => (l.lineId === line.lineId ? updated : l));
       const subtotal = round2(lines.filter((l) => !l.isFee).reduce((s, l) => s + l.total, 0));
@@ -270,11 +274,34 @@ function reducer(state: AppState, action: Action): AppState {
         const p = state.products.find((x) => x.id === action.patch.productId);
         what.push(p ? `matched to ${p.name}` : "match cleared");
       }
+      if (what.length === 0 && updated.check?.ok && !line.check?.ok) what.push("checked by the owner");
       if (what.length === 0) return next;
       return withAudit(next, {
         ts: action.ts,
         type: "invoice",
-        summary: `Invoice ${inv.invoiceNumber}: line "${line.description}" corrected (${what.join(", ")})`,
+        summary: `Invoice ${inv.invoiceNumber}: line "${line.description}" ${what.length === 1 && what[0] === "checked by the owner" ? what[0] : `corrected (${what.join(", ")})`}`,
+        entityType: "invoice",
+        entityId: inv.id,
+      });
+    }
+
+    case "REMOVE_INVOICE_LINE": {
+      const inv = state.invoices.find((i) => i.id === action.invoiceId);
+      const line = inv?.lines.find((l) => l.lineId === action.lineId);
+      if (!inv || !line) return state;
+      const lines = inv.lines.filter((l) => l.lineId !== line.lineId);
+      const subtotal = round2(lines.filter((l) => !l.isFee).reduce((s, l) => s + l.total, 0));
+      const fees = round2(lines.filter((l) => l.isFee).reduce((s, l) => s + l.total, 0));
+      const total = round2(subtotal + fees + inv.tax);
+      const next = {
+        ...state,
+        invoices: state.invoices.map((i) => (i.id === inv.id ? { ...i, lines, subtotal, fees, total } : i)),
+      };
+      return withAudit(next, {
+        ts: action.ts,
+        type: "invoice",
+        summary: `Invoice ${inv.invoiceNumber}: line "${line.description}" removed (${money(line.total)})`,
+        details: "The owner said this line is not on the invoice.",
         entityType: "invoice",
         entityId: inv.id,
       });
@@ -284,6 +311,7 @@ function reducer(state: AppState, action: Action): AppState {
       const inv = state.invoices.find((i) => i.id === action.invoiceId);
       if (!inv || inv.status === "approved") return state;
       const vendor = state.vendors.find((v) => v.id === inv.vendorId);
+      const selfCheck = inv.extraction === "claude" || inv.extraction === "simulated" ? summarizeAudit(auditInvoice(state, inv)) : "";
       let vendorProducts = [...state.vendorProducts];
       const history: PriceHistoryEntry[] = [];
       const priceChanges: string[] = [];
@@ -353,7 +381,7 @@ function reducer(state: AppState, action: Action): AppState {
         ts: action.ts,
         type: "invoice",
         summary: `Invoice ${inv.invoiceNumber} from ${vendor?.name ?? inv.vendorId} approved: ${inv.lines.filter((l) => !l.isFee).length} lines, ${money(inv.total)}`,
-        details: `${updated} vendor prices updated, ${added} new vendor SKUs added, ${priceChanges.length} price changes flagged.`,
+        details: `${updated} vendor prices updated, ${added} new vendor SKUs added, ${priceChanges.length} price changes flagged.${selfCheck ? ` ${selfCheck}` : ""}`,
         entityType: "invoice",
         entityId: inv.id,
       });
@@ -719,6 +747,7 @@ export function useActions() {
         dispatch({ type: "UPDATE_INVOICE", invoiceId, patch, ts: nowISO(), audit }),
       updateInvoiceLine: (invoiceId: string, lineId: string, patch: Partial<ExtractedLine>) =>
         dispatch({ type: "UPDATE_INVOICE_LINE", invoiceId, lineId, patch, ts: nowISO() }),
+      removeInvoiceLine: (invoiceId: string, lineId: string) => dispatch({ type: "REMOVE_INVOICE_LINE", invoiceId, lineId, ts: nowISO() }),
       approveInvoice: (invoiceId: string) => dispatch({ type: "APPROVE_INVOICE", invoiceId, ts: nowISO() }),
       rejectInvoice: (invoiceId: string, reason?: string) =>
         dispatch({ type: "REJECT_INVOICE", invoiceId, reason, ts: nowISO() }),

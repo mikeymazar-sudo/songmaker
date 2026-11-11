@@ -33,7 +33,7 @@ const sizes: Record<ButtonSize, string> = {
 /** The button look, for links that should read as buttons. */
 export function buttonStyles(variant: ButtonVariant = "primary", size: ButtonSize = "md", className?: string) {
   return cn(
-    "inline-flex shrink-0 items-center justify-center whitespace-nowrap font-medium transition select-none disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
+    "inline-flex shrink-0 items-center justify-center whitespace-nowrap font-medium transition select-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
     variants[variant],
     sizes[size],
     className,

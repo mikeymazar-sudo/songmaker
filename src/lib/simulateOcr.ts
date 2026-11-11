@@ -85,6 +85,7 @@ export function simulateExtraction(
     const total = round2(unitPrice * qty);
     const confidence = confidenceFor(i);
     if (confidence < 0.7) flags.push("Low confidence: quantity read from a smudged line");
+    const smudged = confidence < 0.7;
     let normalizedUnitPrice: number | undefined;
     let previousPrice: number | undefined;
     let normalizationFactor: number | undefined;
@@ -113,6 +114,9 @@ export function simulateExtraction(
       normalizationFactor,
       previousPrice,
       flags,
+      check: smudged
+        ? { status: "unsure", note: "The two reads saw different numbers.", other: { qty: qty + 1, unitPrice, total: round2(unitPrice * (qty + 1)) } }
+        : { status: "confirmed" },
     });
   });
 
@@ -129,6 +133,7 @@ export function simulateExtraction(
     confidence: 0.9,
     matchStatus: "unmatched",
     flags: ["New item: not in the master product list"],
+    check: { status: "confirmed" },
   });
 
   const subtotal = round2(lines.reduce((s, l) => s + l.total, 0));
@@ -148,6 +153,7 @@ export function simulateExtraction(
         confidence: 0.99,
         matchStatus: "matched",
         flags: [],
+        check: { status: "confirmed" },
       });
     } else {
       const base = lines
@@ -168,6 +174,7 @@ export function simulateExtraction(
           confidence: 0.74,
           matchStatus: "matched",
           flags: ["Fee not printed on the ticket; derived from the handwritten grand total"],
+          derived: true,
         });
       }
     }
@@ -196,6 +203,20 @@ export function simulateExtraction(
     fileName,
     uploadedAt: new Date().toISOString(),
     confidence,
-    notes: template ? `Extracted with the ${vendor.name} layout model` : "Extracted with the generic invoice model",
+    notes: "Practice sample. Nothing here was read from a real invoice.",
+    verification: {
+      printedTotal: total,
+      secondRead: {
+        at: new Date().toISOString(),
+        legibility: "good",
+        total,
+        tax,
+        lines: lines.filter((l) => !l.derived).length,
+        confirmed: lines.filter((l) => l.check?.status === "confirmed").length,
+        corrected: 0,
+        unsure: lines.filter((l) => l.check?.status === "unsure").length,
+        added: 0,
+      },
+    },
   };
 }

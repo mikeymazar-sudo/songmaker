@@ -42,7 +42,7 @@ export function VendorOrdersPage() {
             value={money(routing.total)}
             hint={
               <>
-                {fmtNum(routing.units)} units from {routing.vendorsActive} vendor{routing.vendorsActive === 1 ? "" : "s"}, fees and tax included
+                {fmtNum(routing.units)} unit{routing.units === 1 ? "" : "s"} from {routing.vendorsActive} vendor{routing.vendorsActive === 1 ? "" : "s"}, fees and tax included
                 {routing.savings > 0 ? (
                   <>
                     <br />
@@ -166,7 +166,7 @@ function VendorCartRow({ cart }: { cart: VendorCart }) {
         <div className="min-w-0 flex-1">
           <div className="truncate text-[17px] font-medium tracking-tight text-text">{cart.vendor.name}</div>
           <div className="mt-0.5 text-[13px] text-muted">
-            {cart.lines.length} item{cart.lines.length === 1 ? "" : "s"} · {fmtNum(cart.units)} units
+            {cart.lines.length} item{cart.lines.length === 1 ? "" : "s"} · {fmtNum(cart.units)} unit{cart.units === 1 ? "" : "s"}
           </div>
         </div>
         <div className="shrink-0 text-right">

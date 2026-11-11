@@ -2,7 +2,7 @@ import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Category, FeeRule, Unit, Vendor, VendorId, VendorProduct } from "@/data/types";
 import { buildInitialState } from "@/data/initialState";
-import type { AppState, AuditEntry, InvoiceRecord, PriceHistoryEntry, ProductRecord, PurchaseOrder, RoutingSettings } from "@/lib/models";
+import type { AppState, AuditEntry, InvoiceRecord, InvoiceVerification, PriceHistoryEntry, ProductRecord, PurchaseOrder, RoutingSettings } from "@/lib/models";
 import { serverEnv } from "./env";
 
 let client: SupabaseClient | null = null;
@@ -95,6 +95,7 @@ export const toRow = {
     confidence: i.confidence ?? null,
     reject_reason: i.rejectReason ?? null,
     notes: i.notes ?? null,
+    verification: i.verification ?? null,
     updated_at: new Date().toISOString(),
   }),
   purchaseOrder: (po: PurchaseOrder): Row => ({
@@ -190,6 +191,7 @@ export const fromRow = {
     confidence: numOrUndef(r.confidence),
     rejectReason: strOrUndef(r.reject_reason),
     notes: strOrUndef(r.notes),
+    verification: (r.verification as InvoiceVerification | null) ?? undefined,
   }),
   purchaseOrder: (r: Row): PurchaseOrder => ({
     id: str(r.id),

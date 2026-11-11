@@ -1,17 +1,27 @@
 "use client";
 
+import { ClipboardCheck, ScanLine, type LucideIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo } from "react";
-import { TakeInvoicePhoto } from "@/components/invoices/TakeInvoicePhoto";
+import { useInvoiceCapture } from "@/components/invoices/InvoiceCapture";
 import { buttonStyles } from "@/components/ui/Button";
 import { Hero } from "@/components/ui/Hero";
 import { List, Row, Section } from "@/components/ui/List";
+import { Panel } from "@/components/ui/Panel";
 import { cn, daysAgoISO, fmtNum, money, moneyWhole, relativeTime, round2 } from "@/lib/format";
 import { routeOrder, suggestedQty } from "@/lib/pricing";
 import { useApp } from "@/lib/store";
 
 export function DashboardPage() {
-  const { state } = useApp();
+  const { state, setUi } = useApp();
+  const router = useRouter();
+  const capture = useInvoiceCapture({
+    onCreated: (invoice) => {
+      setUi({ selectedInvoiceId: invoice.id, nonce: Date.now() });
+      router.push("/invoices");
+    },
+  });
   const routing = useMemo(() => routeOrder(state), [state]);
   const since = daysAgoISO(30);
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -28,81 +38,84 @@ export function DashboardPage() {
       .filter((x) => x.total > 0)
       .sort((a, b) => b.total - a.total);
     const pending = state.invoices.filter((i) => i.status === "needs-review" || i.status === "processing");
-    const active = state.products.filter((p) => !p.archived);
-    const belowPar = active.filter((p) => suggestedQty(p) > 0);
+    const belowPar = state.products.filter((p) => !p.archived && suggestedQty(p) > 0);
     const priceChanges = state.priceHistory
       .filter((h) => h.previousPrice !== undefined && Math.abs(h.price - h.previousPrice) / h.previousPrice > 0.005)
       .slice(0, 5);
     const lastCount = state.audit.find((e) => e.type === "inventory");
-    return { recent, spend, byVendor, pending, belowPar, priceChanges, lastCount };
+    return { spend, byVendor, pending, belowPar, priceChanges, lastCount };
   }, [state, since]);
 
   const maxSpend = Math.max(1, ...data.byVendor.map((v) => v.total));
   const hasOrder = routing.carts.length > 0;
 
   return (
-    <div className="lg:grid lg:grid-cols-2 lg:gap-x-20">
+    <div className="lg:grid lg:grid-cols-2 lg:gap-x-16">
+      {capture.mount}
       <div>
-        <p className="mb-6 text-[15px] text-muted">{today}</p>
-        <Hero
-          label="This week's order"
-          value={moneyWhole(routing.total)}
-          hint={
-            hasOrder ? (
-              <>
-                {fmtNum(routing.units)} units from {routing.vendorsActive} vendor{routing.vendorsActive === 1 ? "" : "s"}
-                {routing.savings > 0 ? (
-                  <>
-                    {" · "}
-                    <span className="font-medium text-success">saves {moneyWhole(routing.savings)}</span>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              "Everything is stocked to par."
-            )
-          }
-        />
-        <div className="mt-6 grid grid-cols-2 gap-2.5">
-          <Link href="/order" className={buttonStyles("primary", "md", "w-full")}>
-            Start count
+        <p className="mb-4 text-[15px] text-muted">{today}</p>
+        <Panel>
+          <Hero
+            label="This week's order"
+            value={moneyWhole(routing.total)}
+            hint={
+              hasOrder ? (
+                <>
+                  {fmtNum(routing.units)} unit{routing.units === 1 ? "" : "s"} from {routing.vendorsActive} vendor{routing.vendorsActive === 1 ? "" : "s"}
+                  {routing.savings > 0 ? (
+                    <>
+                      {" · "}
+                      <span className="font-medium text-success">saves {moneyWhole(routing.savings)}</span>
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                "Everything is stocked to par."
+              )
+            }
+          />
+          <Link href={hasOrder ? "/orders" : "/order"} className={buttonStyles("primary", "md", "mt-5 w-full")}>
+            {hasOrder ? "Review order" : "Start count"}
           </Link>
-          <Link href="/orders" className={buttonStyles("outline", "md", "w-full")}>
-            Review order
-          </Link>
-          <TakeInvoicePhoto className="col-span-2 w-full" />
+        </Panel>
+
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <Tile
+            href="/order"
+            icon={ClipboardCheck}
+            title="Count stock"
+            hint={data.lastCount ? `Last count ${relativeTime(data.lastCount.ts)}` : `${data.belowPar.length} below par`}
+          />
+          <Tile onClick={capture.scan} icon={ScanLine} title="Scan invoice" hint={capture.canRead ? "Read twice and checked" : "Photo reading is off"} />
         </div>
 
-        <List className="mt-6 border-y border-border">
-          <li>
-            <Row
-              href="/invoices"
-              title={data.pending.length > 0 ? `${data.pending.length} invoice${data.pending.length === 1 ? "" : "s"} to check` : "All invoices"}
-              subtitle={data.pending.length > 0 ? "Waiting for your OK" : "Upload a file or find an old one"}
-            />
-          </li>
-          {routing.missingQuotes.length > 0 ? (
-            <li>
-              <Row
-                href="/orders"
-                title={`${routing.missingQuotes.length} item${routing.missingQuotes.length === 1 ? " needs" : "s need"} a price`}
-                subtitle="Below par, but no vendor has a price yet"
-              />
-            </li>
-          ) : null}
-          {data.belowPar.length > 0 ? (
-            <li>
-              <Row
-                href="/order"
-                title={`${data.belowPar.length} item${data.belowPar.length === 1 ? "" : "s"} below par`}
-                subtitle={data.lastCount ? `Last counted ${relativeTime(data.lastCount.ts)}` : "Not counted yet"}
-              />
-            </li>
-          ) : null}
-        </List>
+        {data.pending.length > 0 || routing.missingQuotes.length > 0 ? (
+          <Section title="Waiting on you" className="mt-8">
+            <List>
+              {data.pending.length > 0 ? (
+                <li>
+                  <Row
+                    href="/invoices"
+                    title={`${data.pending.length} invoice${data.pending.length === 1 ? "" : "s"} to check`}
+                    subtitle="Prices update when you approve"
+                  />
+                </li>
+              ) : null}
+              {routing.missingQuotes.length > 0 ? (
+                <li>
+                  <Row
+                    href="/orders"
+                    title={`${routing.missingQuotes.length} item${routing.missingQuotes.length === 1 ? " needs" : "s need"} a price`}
+                    subtitle="Below par, but no vendor has a price yet"
+                  />
+                </li>
+              ) : null}
+            </List>
+          </Section>
+        ) : null}
 
         {hasOrder ? (
-          <Section title="Order by vendor">
+          <Section title="Order by vendor" className="mt-8">
             <List>
               {routing.carts.map((c) => (
                 <li key={c.vendor.id}>
@@ -121,7 +134,7 @@ export function DashboardPage() {
 
       <div>
         {data.priceChanges.length > 0 ? (
-          <Section title="Prices that changed" className="lg:mt-0">
+          <Section title="Prices that changed" className="mt-8 lg:mt-0">
             <List>
               {data.priceChanges.map((h) => {
                 const product = state.products.find((p) => p.id === h.productId);
@@ -147,7 +160,11 @@ export function DashboardPage() {
           </Section>
         ) : null}
 
-        <Section title="Last 30 days" action={<span className="tabular text-text">{money(data.spend)}</span>} className={cn(data.priceChanges.length === 0 && "lg:mt-0")}>
+        <Section
+          title="Last 30 days"
+          action={<span className="tabular text-text">{money(data.spend)}</span>}
+          className={cn("mt-8", data.priceChanges.length === 0 && "lg:mt-0")}
+        >
           {data.byVendor.length === 0 ? (
             <p className="py-4 text-[15px] text-muted">Approve an invoice and your spending shows up here.</p>
           ) : (
@@ -171,5 +188,28 @@ export function DashboardPage() {
         </Section>
       </div>
     </div>
+  );
+}
+
+/** A big, labelled shortcut to one of the two jobs done standing up: counting and scanning. */
+function Tile({ href, onClick, icon: Icon, title, hint }: { href?: string; onClick?: () => void; icon: LucideIcon; title: string; hint: string }) {
+  const body = (
+    <>
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-3 text-text">
+        <Icon className="h-5 w-5" strokeWidth={1.75} />
+      </span>
+      <span className="mt-3 block text-[15px] font-semibold text-text">{title}</span>
+      <span className="mt-0.5 block text-[13px] leading-snug text-muted">{hint}</span>
+    </>
+  );
+  const shared = "block rounded-2xl border border-border p-4 text-left transition-colors active:bg-surface-2 md:hover:bg-surface-2";
+  return href ? (
+    <Link href={href} className={shared}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={shared}>
+      {body}
+    </button>
   );
 }

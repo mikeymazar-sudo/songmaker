@@ -121,14 +121,17 @@ const reads = new Map<string, { count: number; resetAt: number }>();
 const READ_WINDOW_MS = 60 * 60_000;
 const MAX_READS = 30;
 
-/** Each invoice read costs money. Without a passcode anyone can call it, so cap it: 30 an hour per client, per server instance. */
-export function extractAllowed(request: Request): boolean {
+/**
+ * Each invoice read costs money. Without a passcode anyone can call it, so cap it: 30 an hour per client,
+ * per server instance. The first and second read of an invoice are counted apart, so 30 invoices an hour.
+ */
+export function readAllowed(request: Request, which: "first" | "second"): boolean {
   if (passcodeEnabled()) return true;
-  const ip = clientIp(request);
+  const key = `${which}:${clientIp(request)}`;
   const now = Date.now();
-  const entry = reads.get(ip);
+  const entry = reads.get(key);
   if (!entry || entry.resetAt < now) {
-    reads.set(ip, { count: 1, resetAt: now + READ_WINDOW_MS });
+    reads.set(key, { count: 1, resetAt: now + READ_WINDOW_MS });
     return true;
   }
   entry.count += 1;
